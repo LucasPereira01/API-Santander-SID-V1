@@ -1,99 +1,69 @@
 import requests
-import ssl
 import warnings
-
+import schedule
+import threading
+import time
 
 domainId = 'e9abe3c6-5ca9-4432-87fe-006c7236fec7'
 warnings.filterwarnings("ignore")
 
-
-#se quiser armazenar num arquivo
+# Função para ler o token de um arquivo
 def read_file():
-    file_path = 'token.dat' 
+    file_path = 'token.dat'
     with open(file_path, 'r') as file:
         for line in file:
-            return(line.strip())
+            return line.strip()
 
-
+# Função para escrever o token em um arquivo
 def write_file(s):
-    file1 = open('token.dat', 'w')
-    # Writing a string to file
-    file1.write(s)   
-    # Closing file
-    file1.close()
+    with open('token.dat', 'w') as file:
+        file.write(s)
 
-
-#a cada uma hora o token fica invalido
+# Função para obter o token
 def get_token():
     url = "https://server.demo.sas.com/SASLogon/oauth/token"
-
     payload = 'username=sasdemo&password=Orion123&grant_type=password'
     headers = {
-    'Content-Type': 'application/x-www-form-urlencoded',
-    'Authorization': 'Basic c2FzLmVjOg==',
-    'Cookie': 'sas-ingress-nginx=9e9148b7e9ef1d961e906ed16b3ad80e|999d8d05a8ecead1a5884cb51c3c5d02; JSESSIONID=468CB9D45ED2DDDA01AC50C37F5C9ADA'
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': 'Basic c2FzLmVjOg==',
+        'Cookie': 'sas-ingress-nginx=9e9148b7e9ef1d961e906ed16b3ad80e|999d8d05a8ecead1a5884cb51c3c5d02; JSESSIONID=468CB9D45ED2DDDA01AC50C37F5C9ADA'
     }
-    #para resolver o erro de certificado da maquina:
-    #requests.get('https://github.com', verify='/path/to/certfile')
-    response = requests.request("POST", url, headers=headers, data=payload, verify=False)
-    r = response.json()
-    #print(r['access_token'])
-    return(r['access_token'])
-    schedule.every(55).minutes.do(get_token)    
-
-
-#1000 requisies => 1 token
-def conf_sas(token):
-    
-    url = "https://server.demo.sas.com/catalog/instances"
-
-    payload = {}
-    #crio a autorizacao Bearer
-    autorization = f'Bearer {token}'
-    headers = {
-    'Authorization': autorization,
-    'Cookie': 'sas-ingress-nginx=18f200a6fe34881de5eda1d98bcfcc5e|c71550a7073ca099de18546200bef179'
-    }
-    response = requests.request("GET", url, headers=headers, data=payload, verify = False)
-    if response.status_code ==200:
-        r = response.json()
-        return r
+    response = requests.post(url, headers=headers, data=payload, verify=False)
+    if response.status_code == 200:
+        return response.json()['access_token']
     else:
-        print(response)
-        get_token()        
+        response.raise_for_status()
 
-
-def armaze_token():
+# Função para obter o token e escrever no arquivo
+def get_token_and_write():
     token = get_token()
-    #gravo o token no arquivo
     write_file(token)
-    return
 
+# Função para configurar o SAS
+def conf_sas(token):
+    url = "https://server.demo.sas.com/catalog/instances"
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Cookie': 'sas-ingress-nginx=18f200a6fe34881de5eda1d98bcfcc5e|c71550a7073ca099de18546200bef179'
+    }
+    response = requests.get(url, headers=headers, verify=False)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        response.raise_for_status()
 
+# Função para obter os domínios
 def get_domains(token):
     url = "https://server.demo.sas.com/referenceData/domains"
-
-    payload = {}
-    #crio a autorizacao Bearer
-    autorization = f'Bearer {token}'
     headers = {
-    'Authorization': autorization,
-    'Accept': 'application/vnd.sas.collection+json, applcation/json, application/vnd.sas.errpr+json'
-    
+        'Authorization': f'Bearer {token}',
+        'Accept': 'application/vnd.sas.collection+json, applcation/json, application/vnd.sas.errpr+json'
     }
-    response = requests.request("GET", url, headers=headers, data=payload, verify = False)
-    if response.status_code ==200:
-        r = response.json()
-
-        for i in r['items']:
-            print(i['id'])
-            print(i['name'])
-
-        return r
+    response = requests.get(url, headers=headers, verify=False)
+    if response.status_code == 200:
+        return response.json()
     else:
-        print(response)
-        get_token()
-
+        response.raise_for_status()
 
 def get_content(token):
     url = f"https://server.demo.sas.com/referenceData/domains/{domainId}/contents/"
@@ -141,6 +111,7 @@ def get_curren_contents(token):
         get_token()
 
 
+
 def create_domains(token):
     url = "https://server.demo.sas.com/referenceData/domains/"
     ## retorna todas  as informaçoes de alterações e updates do domains e suas colunas
@@ -184,34 +155,15 @@ def create_domains_entries(token):
         print(response)
         get_token()
 
-
-def get_etag(token):
-    url = "https://server.demo.sas.com/referenceData/domains/e9abe3c6-5ca9-4432-87fe-006c7236fec7/currentContents/"
-    ## retorna todas  as informaçoes de alterações e updates do domains e suas colunas
-
-    autorization = f'Bearer {token}'
-    headers = {
-    'Authorization': autorization,
-    'Accept': 'application/vnd.sas.collection+json, application/json, application/vnd.sas.errpr+json'
-    }
-    response = requests.request("GET", url, headers=headers, verify = False)
-    if response.status_code ==200:
-        etag = response.headers.get('ETag')
-        print(etag)
-
-        return etag
-    else:
-        print(response)
-        print(response.text)
-
-
+# Função para atualizar as entradas
 def update_entries(token):
     etag = get_etag(token)
     if not etag:
         print("Não foi possível obter o ETAG")
         return None
+   
     url = "https://server.demo.sas.com/referenceData/domains/e9abe3c6-5ca9-4432-87fe-006c7236fec7/contents/5411fcbc-250a-4dd8-ad4e-38cb65d9ed6f/entries"
-    
+   
     payload = [
         {
             "op": "replace",
@@ -230,23 +182,30 @@ def update_entries(token):
             "value": "Critical"
         }
     ]
-    
-    autorization = f'Bearer {token}'
+   
     headers = {
         "If-Match": etag,
         "Content-Type": "application/json-patch+json",
-        "Authorization": autorization,
+        "Authorization": f'Bearer {token}',
         "Accept": "application/vnd.sas.collection+json, application/json, application/vnd.sas.error+json"
     }
-    
-    response = requests.request("PATCH", url, headers=headers, json=payload, verify=False)
-    print(response.json())
-    
+   
+    response = requests.patch(url, headers=headers, json=payload, verify=False)
+    response.raise_for_status()
+    return response.json()
+
+# Função para obter o ETAG
+def get_etag(token):
+    url = "https://server.demo.sas.com/referenceData/domains/e9abe3c6-5ca9-4432-87fe-006c7236fec7/currentContents/"
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Accept': 'application/vnd.sas.collection+json, application/json, application/vnd.sas.errpr+json'
+    }
+    response = requests.get(url, headers=headers, verify=False)
     if response.status_code == 200:
-        r = response.json()
-        if not r:
-            raise ValueError("Dados não fornecidos")
-        return r
+        return response.headers.get('ETag')
     else:
-        print(response)
-        get_token()
+        response.raise_for_status()
+
+# Programamos a atualização do token a cada 55 minutos
+schedule.every(55).minutes.do(get_token_and_write)
