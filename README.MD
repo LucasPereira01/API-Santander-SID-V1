@@ -32,3 +32,9 @@ Com o ambiente virtual ativado, instale as dependências listadas no arquivo `re
 ```bash
 pip install -r requirements.txt
 ```
+
+### Criar ou atualizar o requirement.txt
+
+```bash
+pip freeze > requirements.txt
+```
