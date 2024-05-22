@@ -1,3 +1,4 @@
+from flask import Flask, make_response, jsonify, request
 import requests
 import warnings
 import schedule
@@ -113,27 +114,36 @@ def get_curren_contents(token):
 
 
 def create_domains(token):
+    body = request.json
     url = "https://server.demo.sas.com/referenceData/domains/"
-    ## retorna todas  as informaçoes de alterações e updates do domains e suas colunas
 
-    payload = "{\n  \"name\": \"serviceLevel\",\n  \"description\": \"The service level designation.\",\n  \"domainType\": \"lookup\"\n}"
-    #crio a autorizacao Bearer
-    autorization = f'Bearer {token}'
-    headers = {
-    "Content-Type": "application/vnd.sas.data.reference.domain+json",
-    'Authorization': autorization,
-    "Accept": "application/vnd.sas.data.reference.domain+json, application/vnd.sas.data.reference.value.list+json, application/json, application/vnd.sas.error+json"
+    # Criação do payload com base nos dados recebidos na solicitação
+    payload = {
+        "name": body.get("name"),  # Usando get() para evitar erros se a chave não existir
+        "description": body.get("description"),
+        "domainType": body.get("domainType")
     }
-    response = requests.request("POST", url, headers=headers,data=payload, verify = False)
-    if response.status_code ==201:
-        r = response.json()
-        return r
+
+    # Criação do cabeçalho de autorização
+    authorization = f'Bearer {token}'
+    headers = {
+        "Content-Type": "application/vnd.sas.data.reference.domain+json",
+        "Authorization": authorization,
+        "Accept": "application/vnd.sas.data.reference.domain+json, application/vnd.sas.data.reference.value.list+json, application/json, application/vnd.sas.error+json"
+    }
+
+    # Envio da solicitação POST para criar o domínio
+    response = requests.post(url, headers=headers, json=payload, verify=False)
+    if response.status_code == 201:
+        # Se a criação for bem-sucedida, retornamos os dados do domínio criado
+        return jsonify(response.json())
     else:
-        print(response)
-        get_token()
+        # Se houver um erro, podemos retornar uma mensagem de erro
+        return jsonify({"error": "Failed to create domain"}), response.status_code
 
 
 def create_domains_entries(token):
+    body = request.json
     url = "https://server.demo.sas.com/referenceData/domains/e9abe3c6-5ca9-4432-87fe-006c7236fec7/contents"
     ## retorna todas  as informaçoes de alterações e updates do domains e suas colunas
 

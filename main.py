@@ -62,3 +62,4 @@ def get_index():
 # Executamos o aplicativo Flask
 if __name__ == "__main__":
     app.run(debug=True, ssl_context='adhoc')
+    #app.run(app.run(port=8080), debug=True, ssl_context='adhoc')
