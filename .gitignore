@@ -2,3 +2,4 @@ venv
 token.dat
 __pycache__
 _pycache_
+myenv
