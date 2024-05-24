@@ -8,6 +8,7 @@ import time
 domainId = 'e9abe3c6-5ca9-4432-87fe-006c7236fec7'
 warnings.filterwarnings("ignore")
 
+
 # Função para ler o token de um arquivo
 def read_file():
     file_path = 'token.dat'
@@ -16,11 +17,13 @@ def read_file():
             return line.strip()
     print('token salvo')
 
+
 # Função para escrever o token em um arquivo
 def write_file(s):
     with open('token.dat', 'w') as file:
         file.write(s)
     print('arquivo token.dat criado')
+
 
 # Função para obter o token
 def get_token():
@@ -38,10 +41,12 @@ def get_token():
     else:
         response.raise_for_status()
 
+
 # Função para obter o token e escrever no arquivo
 def get_token_and_write():
     token = get_token()
     write_file(token)
+
 
 # Função para configurar o SAS
 def conf_sas(token):
@@ -56,7 +61,6 @@ def conf_sas(token):
     else:
         # Se houver um erro, podemos retornar uma mensagem de erro
         return jsonify({"error": response.text}), response.status_code
-
 
 
 # Função para obter os domínios e retornar id e nome
@@ -93,41 +97,54 @@ def get_domains(token):
         return {"error": str(e)}, 500  # Código de status HTTP 500 para erro interno do servidor
 
 
-def get_content(token):
-    domain_name = request.json.get("name")  # Obtém o nome do domínio do JSON da solicitação
+def get_content(token, name=None):
+    domain_name = request.json.get("name") if not name else name  # Prioriza o nome do domínio fornecido na chamada da função
     if not domain_name:
-        return {"error": "O nome do domínio não foi fornecido no corpo da solicitação."}, 400
+        return {"error": "O nome do domínio não foi fornecido."}, 400
 
-    # Obtém os dados dos domínios
+     # Obtém os dados dos domínios
     domain_info = get_domains(token)
-   
+
     # Verifica se foi obtido corretamente
     if isinstance(domain_info, list):
         # Procura o ID do domínio com base no nome fornecido
         domain = next((domain for domain in domain_info if domain["name"] == domain_name), None)
-       
+
         if domain:
             domainId = domain["id"]
-           
+
             # Agora que temos o ID do domínio, podemos usar para fazer a solicitação de conteúdo
             url = f"https://server.demo.sas.com/referenceData/domains/{domainId}/contents/"
-           
+
             # Autorização e headers
             authorization = f'Bearer {token}'
             headers = {
                 'Authorization': authorization,
                 'Accept': 'application/vnd.sas.collection+json, application/json, application/vnd.sas.error+json'
             }
-           
+
             # Fazendo a solicitação GET
             response = requests.get(url, headers=headers, verify=False)
-           
+
             if response.status_code == 200:
+                # Obtém o ETAG do cabeçalho da resposta
+                etag = response.headers.get('ETag')
+
                 # Inicializa uma lista para armazenar os itens
                 content_list = []
 
                 # Itera sobre os itens do JSON de resposta
                 for item in response.json().get('items', []):
+                    # Itera sobre os links dentro de cada item
+                    for link in item.get('links', []):
+                        # Verifica se o rel é 'self' e obtém a URI correspondente
+                        if link.get('rel') == 'self':
+                            uri = link.get('uri')
+                            break  # Para de iterar sobre os links assim que encontrar o 'self'
+                    else:
+                        # Se nenhum link 'self' for encontrado, define a URI como None
+                        uri = None
+
                     # Cria um novo dicionário para armazenar as informações relevantes
                     content_data = {
                         "id": item.get("id"),
@@ -135,17 +152,18 @@ def get_content(token):
                         "createdBy": item.get("createdBy"),
                         "creationTimeStamp": item.get("creationTimeStamp"),
                         "modifiedTimeStamp": item.get("modifiedTimeStamp"),
+                        "uri": uri,  # Usa a URI obtida dos links
                         "majorNumber": item.get("majorNumber"),
-                        "minorNumber": item.get("minorNumber"),            
+                        "minorNumber": item.get("minorNumber"),
                         "status": item.get("status"),
                         "standing": item.get("standing"),
                         "version": f"{item.get('majorNumber')}.{item.get('minorNumber')}"
-            }
+                    }
                     # Adiciona o dicionário à lista de itens
                     content_list.append(content_data)
 
-                # Retorna a lista de itens como JSON
-                return jsonify(content_list)
+                # Retorna a lista de itens e o ETAG em um dicionário
+                return {"content_list": content_list, "etag": etag}
             else:
                 # Se houver um erro, retornamos a mensagem de erro
                 return {"error": response.text}, response.status_code
@@ -157,9 +175,7 @@ def get_content(token):
         return domain_info
 
 
-
-
-def get_curren_contents(token): # Busca a ultima versao que esta em produção.
+def get_current_contents(token):
     domain_name = request.json.get("name")  # Obtém o nome do domínio do JSON da solicitação
     if not domain_name:
         return {"error": "O nome do domínio não foi fornecido no corpo da solicitação."}, 400
@@ -194,24 +210,21 @@ def get_curren_contents(token): # Busca a ultima versao que esta em produção.
 
                 # Itera sobre os itens do JSON de resposta
                 for item in response.json().get('items', []):
-                    # Cria um novo dicionário para armazenar as informações relevantes
+                    # Extrai as informações relevantes de cada item
                     content_data = {
+                        "commencedTimeStamp": item.get("commencedTimeStamp"),
+                        "contentId": item.get("contentId"),
+                        "domainId": item.get("domainId"),
                         "id": item.get("id"),
-                        "label": item.get("label"),
-                        "createdBy": item.get("createdBy"),
-                        "creationTimeStamp": item.get("creationTimeStamp"),
-                        "modifiedTimeStamp": item.get("modifiedTimeStamp"),
-                        "majorNumber": item.get("majorNumber"),
-                        "minorNumber": item.get("minorNumber"),            
                         "status": item.get("status"),
-                        "standing": item.get("standing"),
-                        "version": f"{item.get('majorNumber')}.{item.get('minorNumber')}"
-            }
+                        "versionId": item.get("versionId"),
+                        "name": request.json.get("name")
+                    }
                     # Adiciona o dicionário à lista de itens
                     content_list.append(content_data)
 
                 # Retorna a lista de itens como JSON
-                return jsonify(content_list)
+                return make_response(jsonify(content_list))
             else:
                 # Se houver um erro, retornamos a mensagem de erro
                 return {"error": response.text}, response.status_code
@@ -223,14 +236,21 @@ def get_curren_contents(token): # Busca a ultima versao que esta em produção.
         return domain_info
 
 
-
 def create_domains(token):
+    domains = get_domains(token)
     body = request.json
+    new_domain_name = body.get("name")
+    
+    # Verifica se o nome do novo domínio já existe
+    for domain in domains:
+        if domain["name"] == new_domain_name:
+            return jsonify({"error": f"O domínio '{new_domain_name}' já existe."}), 400
+    
     url = "https://server.demo.sas.com/referenceData/domains/"
 
     # Criação do payload com base nos dados recebidos na solicitação
     payload = {
-        "name": body.get("name"),  # Usando get() para evitar erros se a chave não existir
+        "name": new_domain_name,
         "description": body.get("description"),
         "domainType": body.get("domainType")
     }
@@ -246,88 +266,168 @@ def create_domains(token):
     # Envio da solicitação POST para criar o domínio
     response = requests.post(url, headers=headers, json=payload, verify=False)
     if response.status_code == 201:
-        # Se a criação for bem-sucedida, retornamos os dados do domínio criado
-        return jsonify(response.json())
+        # Extrai informações importantes do JSON de resposta
+        domain_info = response.json()
+        relevant_info = {
+            "name": domain_info["name"],
+            "description": domain_info["description"],
+            "domainType": domain_info["domainType"],
+            "id": domain_info["id"],
+            "creationTimeStamp": domain_info["creationTimeStamp"],
+            "modifiedBy": domain_info["modifiedBy"],
+            "modifiedTimeStamp": domain_info["modifiedTimeStamp"]
+        }
+        
+        # Retorna as informações importantes junto com a resposta
+        return jsonify({"domain_created": relevant_info}), 201
     else:
         # Se houver um erro, podemos retornar uma mensagem de erro
         return jsonify({"error": "Failed to create domain"}), response.status_code
-
+    
 
 def create_domains_entries(token):
     body = request.json
-    url = "https://server.demo.sas.com/referenceData/domains/e9abe3c6-5ca9-4432-87fe-006c7236fec7/contents"
-    ## retorna todas  as informaçoes de alterações e updates do domains e suas colunas
+    domain_name = body.get("name")
+    
+    # Verifica se o nome do domínio existe na lista de domínios
+    domain_exists = False
+    domain_id = None
+    all_domains = get_domains(token)
+    for domain in all_domains:
+        if domain["name"] == domain_name:
+            domain_exists = True
+            domain_id = domain["id"]
+            break
+    
+    if not domain_exists:
+        return jsonify({"error": f"O domínio '{domain_name}' não foi encontrado."}), 404
+    
+    # Constrói a URL com o ID do domínio para criar as entradas
+    url = f"https://server.demo.sas.com/referenceData/domains/{domain_id}/contents"
+    
+    # Payload com os dados das entradas
+    payload = {
+        "label": body.get("name"),  # Use o nome do domínio como label
+        "status": "developing",
+        "majorNumber": 1,
+        "minorNumber": 1,
+        "entries": body.get("entries")
+    }
 
-    payload = "{\n  \"label\": \"lookup1.0\",\n  \"keyLabel\": \"Severity\",\n  \"valueLabel\": \"SLA Class\",\n  \"status\": \"developing\",\n  \"majorNumber\": 1,\n  \"minorNumber\": 1,\n  \"entries\": [\n    {\n      \"key\": \"A\",\n      \"value\": \"5\"\n    },\n    {\n      \"key\": \"B\",\n      \"value\": \"10\"\n    }\n  ]\n}"
-    #crio a autorizacao Bearer
-    autorization = f'Bearer {token}'
+    # Cabeçalhos e autorização
+    authorization = f'Bearer {token}'
     headers = {
-    "Content-Type": "application/vnd.sas.data.reference.domain.content.full+json",
-    "Authorization": autorization,
-    "Accept": "application/vnd.sas.data.reference.domain.content.full+json, application/vnd.sas.data.reference.value.list.content.full+json, application/json, application/vnd.sas.error+json"
-}
-    response = requests.request("POST", url, headers=headers,data=payload, verify = False)
-    if response.status_code ==201:
-        r = response.json()
-        if not r:
-            raise ValueError("Dados não fornecidos")
-        return r
+        "Content-Type": "application/vnd.sas.data.reference.domain.content.full+json",
+        "Authorization": authorization,
+        "Accept": "application/vnd.sas.data.reference.domain.content.full+json, application/vnd.sas.data.reference.value.list.content.full+json, application/json, application/vnd.sas.error+json"
+    }
+    
+    # Solicitação POST para criar as entradas
+    response = requests.post(url, headers=headers, json=payload, verify=False)
+    if response.status_code == 201:
+        return jsonify(response.json()), 201
     else:
-        # Se houver um erro, podemos retornar uma mensagem de erro
         return jsonify({"error": response.text}), response.status_code
-# Função para atualizar as entradas
+    
+    
+def extract_id_from_uri(uri):
+    # A URI é geralmente uma string no formato '/referenceData/domains/{domain_id}/contents/{content_id}'
+    # Para extrair o ID, podemos dividir a string pelo caractere '/' e pegar o penúltimo elemento
+    uri_parts = uri.split('/')
+    return uri_parts[-2] if len(uri_parts) >= 2 else None
+
+
 def update_entries(token):
     try:
-        etag = get_etag(token)
+        # Verifica se o nome do domínio foi fornecido
+        domain_name = request.json.get("name")
+        if not domain_name:
+            return {"error": "O nome do domínio não foi fornecido no corpo da solicitação"}, 400
+        
+        # Obtém informações sobre o conteúdo e o ETAG apenas se o domínio existir
+        result = get_content(token, domain_name)
+        if "error" in result:
+            return result  # Retorna o erro diretamente se ocorrer um erro na função get_content
+
+        content_info = result["content_list"]
+        etag = result["etag"]
+        
+        # Verifica se o conteúdo e o ETAG foram obtidos corretamente
+        if not content_info:
+            return {"error": "Failed to get content information"}, 500
         if not etag:
-            raise ValueError("Failed to get ETAG")
-       
-        url = "https://server.demo.sas.com/referenceData/domains/e9abe3c6-5ca9-4432-87fe-006c7236fec7/contents/5411fcbc-250a-4dd8-ad4e-38cb65d9ed6f/entries"
-       
-        payload =[
-    {
-        "op": "replace",
-        "path": "/z",
-        "value": "Novo Valor Aqui"
-    },
-    {
-        "op": "add",
-        "path": "/teste",
-        "value": "Super Urgente"
-    },
-    {
-        "op": "replace",
-        "path": "/b",
-        "value": "Critical"
-    }
-]
-       
+            return {"error": "Failed to get ETAG"}, 500
+        
+        # Lista para armazenar os URIs dos conteúdos correspondentes
+        matching_uris = []
+        
+        # Itera sobre os itens do JSON de resposta da função get_content
+        for item in content_info:
+            # Obtém o URI do item
+            uri = item.get('uri')
+            if uri:
+                # Extrai o ID da URI
+                uri_id = extract_id_from_uri(uri)
+                matching_uris.append(uri)
+        
+        # Verifica se há URIs correspondentes
+        if not matching_uris:
+            return {"error": "Nenhuma URI correspondente encontrada para o domínio."}, 404
+        
+        # Se houver mais de uma URI correspondente, retorne um erro, pois a correspondência é ambígua
+        """ if len(matching_uris) > 1:
+            return {"error": "Múltiplas URIs correspondentes encontradas para o domínio. A correspondência é ambígua."}, 500 """
+        
+        # Obtém a URI correspondente
+        matched_uri = matching_uris[1]
+        print(matched_uri)
+        
+        # Constrói a URL com base na URI correspondente
+        url = f"https://server.demo.sas.com{matched_uri}/entries"
+        
+        # Payload com as operações de atualização
+        payload = request.json.get("data")
+        
+        # Cabeçalhos da requisição
         headers = {
             "If-Match": etag,
             "Content-Type": "application/json-patch+json",
             "Authorization": f'Bearer {token}',
             "Accept": "application/vnd.sas.collection+json, application/json, application/vnd.sas.error+json"
         }
-       
+        
+        # Solicitação PATCH para atualizar as entradas
         response = requests.patch(url, headers=headers, json=payload, verify=False)
-        response.raise_for_status()
-        return response.json()
-    except:
-        # Se houver um erro, podemos retornar uma mensagem de erro
-        return jsonify({"error": response.text}), response.status_code
+        
+        # Verifica se a resposta foi um erro 412 (Precondition Failed)
+        if response.status_code == 412:
+            # Se sim, obtemos o novo ETag
+            new_etag = response.headers.get('ETag')
+            
+            # Fazemos uma nova solicitação GET para obter as informações atualizadas
+            updated_content_info, _ = get_content(token, domain_name)
+            
+            # Iteramos sobre as informações atualizadas para encontrar o novo ETag correspondente
+            for item in updated_content_info:
+                if item.get('uri') == matched_uri:
+                    new_etag = item.get('etag')
+                    break
+            
+            # Atualizamos os cabeçalhos com o novo ETag
+            headers["If-Match"] = new_etag
+            
+            # Fazemos uma nova solicitação PATCH
+            response = requests.patch(url, headers=headers, json=payload, verify=False)
+        
+        # Verifica se houve sucesso na solicitação PATCH
+        if response.status_code == 200:
+            return response.json(), response.status_code
+        else:
+            return {"error": response.text}, response.status_code
+    except Exception as e:
+        # Se houver um erro, retorna uma mensagem de erro
+        return {"error": str(e)}, 500
 
-# Função para obter o ETAG
-def get_etag(token):
-    url = "https://server.demo.sas.com/referenceData/domains/e9abe3c6-5ca9-4432-87fe-006c7236fec7/currentContents/"
-    headers = {
-        'Authorization': f'Bearer {token}',
-        'Accept': 'application/vnd.sas.collection+json, application/json, application/vnd.sas.errpr+json'
-    }
-    response = requests.get(url, headers=headers, verify=False)
-    if response.status_code == 200:
-        return response.headers.get('ETag')
-    else:
-        response.raise_for_status()
 
 # Programamos a atualização do token a cada 55 minutos
 get_token_and_write()

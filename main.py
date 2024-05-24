@@ -3,7 +3,7 @@ from flask import Flask, make_response, jsonify
 import schedule
 import threading
 import time
-from buscasas import conf_sas, read_file, get_token_and_write, get_domains, get_content, get_curren_contents, create_domains, create_domains_entries, update_entries
+from buscasas import conf_sas, read_file, get_token_and_write, get_domains, get_content, get_current_contents, create_domains, create_domains_entries, update_entries
 
 # Programamos a atualização do token a cada 55 minutos
 schedule.every(55).minutes.do(get_token_and_write)
@@ -42,7 +42,7 @@ def get_contents():
 
 @app.route('/api/v1/current_contents', methods=['GET'])
 def get_current_contents_route():
-    return get_curren_contents(token)
+    return get_current_contents(token)
 
 @app.route('/api/v1/create_domains', methods=['POST'])
 def create_domains_route():
