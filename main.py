@@ -22,6 +22,7 @@ schedule_thread.start()
 app = Flask(__name__)
 app.config['DEBUG'] = True
 
+
 # Verifica se existe um token armazenado
 token = read_file()
 if not token:
