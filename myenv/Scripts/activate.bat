@@ -8,7 +8,7 @@ if defined _OLD_CODEPAGE (
     "%SystemRoot%\System32\chcp.com" 65001 > nul
 )
 
-set VIRTUAL_ENV=C:\Users\Lucas\Desktop\Api Santander SID\API-Santander-SID-V1\myenv
+set VIRTUAL_ENV=C:\Users\lucas\OneDrive\Área de Trabalho\Santander\API_v1\API-Santander-SID-V1\myenv
 
 if not defined PROMPT set PROMPT=$P$G
 

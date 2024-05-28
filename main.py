@@ -3,9 +3,11 @@ from flask import Flask, make_response, jsonify
 import schedule
 import threading
 import time
-from buscasas import conf_sas, read_file, get_token_and_write, get_domains, get_content, get_current_contents, create_domains, create_domains_entries, update_entries
 
-# Programamos a atualização do token a cada 55 minutos
+#from lookups.buscasas import conf_sas, read_file, get_token_and_write, get_domains, get_content, get_current_contents, create_domains, create_domains_entries, update_entries
+from folders.segments import create_segmento,edit_segmento,list_segmentos
+
+""" # Programamos a atualização do token a cada 55 minutos
 schedule.every(55).minutes.do(get_token_and_write)
 
 # Função para executar o agendamento em uma thread separada
@@ -16,12 +18,13 @@ def schedule_thread():
 
 # Iniciamos a thread para execução do agendamento
 schedule_thread = threading.Thread(target=schedule_thread)
-schedule_thread.start()
+schedule_thread.start() """
 
 # Iniciamos o aplicativo Flask
 app = Flask(__name__)
 app.config['DEBUG'] = True
 
+""" 
 # Verifica se existe um token armazenado
 token = read_file()
 if not token:
@@ -56,9 +59,29 @@ def create_domains_entries_route():
 def update_entries_route():
     return update_entries(token)
 
+ """
+
 @app.route('/', methods=['GET'])
 def get_index():
     return make_response(jsonify({"sucesso":"Bem vindo"}))
+
+
+### Folders
+
+@app.route('/api/v1/front/segmentos', methods=['POST'])
+def create_segments():
+    return create_segmento()
+
+
+@app.route('/api/v1/front/segmentos/<segmento_id>', methods=['PUT'])
+def edit_segmentos(segmento_id):
+    return edit_segmento(segmento_id)
+
+
+@app.route('/api/v1/front/segmentos', methods=['GET'])
+def list_all_segmentos():
+    return list_segmentos()
+
 
 # Executamos o aplicativo Flask
 if __name__ == "__main__":
