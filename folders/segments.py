@@ -1,5 +1,4 @@
 from flask import Flask, make_response, request, jsonify
-import psycopg2
 import uuid
 from datetime import datetime
 from db import get_db_connection
@@ -11,7 +10,7 @@ app = Flask(__name__)
 def verify_folder_root_or_create(token):
     print('Dentro do verify_folder_root')
     url = "https://server.demo.sas.com/folders/rootFolders"
-    folder_name = "Lucas"  # Mantendo o nome correto da pasta conforme fornecido
+    folder_name = "segmentos"  # Mantendo o nome correto da pasta conforme fornecido <----- Pasta raiz do segmento
 
     headers = {
         "Authorization": f"Bearer {token}",
@@ -31,10 +30,8 @@ def verify_folder_root_or_create(token):
                     uri = folder['links'][0]['uri']
                     print("URI:", uri)
                     return {"name": name, "uri": uri}
-            # Se a pasta não foi encontrada, criar ela
             print("Pasta não encontrada, criando...")
 
-            # Lógica para criar a pasta
             create_folder_url = "https://server.demo.sas.com/folders/folders"
             create_folder_payload = {
                 "name": folder_name,
@@ -54,17 +51,14 @@ def verify_folder_root_or_create(token):
                 print("Falha ao criar a pasta.")
                 print("Status code:", create_folder_response.status_code)
                 print("Texto da resposta:", create_folder_response.text)
-                # Se houver um problema com a solicitação, retornar um erro
                 raise Exception("Failed to create folder.")
         else:
             print("Falha ao recuperar as pastas.")
             print("Status code:", response.status_code)
             print("Texto da resposta:", response.text)
-            # Se houver um problema com a solicitação, retornar um erro
             raise Exception("Failed to retrieve folders.")
     except Exception as e:
         print("Erro durante a solicitação:", e)
-        # Se houver uma exceção, retornar um erro
         raise Exception("Failed to retrieve folders.")
 
 
@@ -90,7 +84,6 @@ def create_segmento(token,global_uri):
     # Pegar o valor de 'is_ativo' do JSON
     is_ativo = data.get('is_ativo', True)
 
-    
     conn = get_db_connection()
     cur = conn.cursor()
 
@@ -117,7 +110,7 @@ def create_segmento(token,global_uri):
             response = requests.post(url, json=payload, headers=headers, verify=False)
 
         if response.status_code != 201:
-            raise Exception("Failed to create segmento in SAS Intelligence Design")
+            raise Exception("Failed to create segmento in SAS Intelligence Design ", response.json())
         
         response_data = response.json()
 
@@ -148,19 +141,21 @@ def create_segmento(token,global_uri):
         conn.close()
 
 
-
-def edit_segmento(segmento_id=None):
-    # Verificar se segmento_id foi passado como argumento da função ou na requisição
-    if not segmento_id:
-        data = request.get_json()
-        segmento_id = data.get('id') if data else None
-
-    if not segmento_id:
-        return jsonify({"error": "Segmento ID is required"}), 400
-    
+def edit_segmento():
     data = request.get_json()
+    segmento_id = data.get('id')
     descricao = data.get('descricao', '')
     is_ativo = data.get('is_ativo', True)
+
+     # Verificar se 'is_ativo' está presente no JSON e é um valor booleano
+    if "is_ativo" not in data or not isinstance(data["is_ativo"], bool):
+        return jsonify({"error": "'is_ativo' é obrigatório e deve ser um booleano"}), 400
+
+    if not segmento_id:
+        return jsonify({"error": "segmento_id is required"}), 400
+    
+    if not descricao:
+        return jsonify({"error": "descricao is required"}), 400
 
     if len(descricao) > 140:
         return jsonify({"error": "Invalid input"}), 400
@@ -171,6 +166,13 @@ def edit_segmento(segmento_id=None):
     updated_at = datetime.now()
 
     try:
+        # verifica se exite o id na table
+        cur.execute("SELECT 1 FROM  segmento WHERE id = %s",(segmento_id,))
+        segmento_existe = cur.fetchone()
+
+        if not segmento_existe:
+            return jsonify({"error":"Segmento nao encontrado"}),404
+        
         cur.execute(
             """
             UPDATE segmento
@@ -189,7 +191,7 @@ def edit_segmento(segmento_id=None):
         cur.close()
         conn.close()
 
-# Endpoint para listar segmentos
+
 def list_segmentos():
     conn = get_db_connection()
     cur = conn.cursor()
@@ -209,10 +211,10 @@ def list_segmentos():
             for row in segmentos
         ]
 
-        return result  # Retornar diretamente a lista de segmentos
+        return result
     except Exception as e:
         print(f"Erro ao listar segmentos: {e}")
-        return []  # Retornar uma lista vazia em caso de erro
+        return []
     finally:
         cur.close()
         conn.close()
