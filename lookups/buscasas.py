@@ -439,7 +439,6 @@ def create_domains_and_entries(token):
     for domain in domains:
         if domain["name"] == new_domain_name:
             return jsonify({"error": f"O domínio '{new_domain_name}' já existe."}), 400
-    
     url = f"https://server.demo.sas.com/referenceData/domains?parentFolderUri={sas_parent_folder_uri_cluster}"
 
     # Criação do payload com base nos dados recebidos na solicitação

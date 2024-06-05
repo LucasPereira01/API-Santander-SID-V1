@@ -3,6 +3,7 @@ from flask import Flask, make_response, jsonify
 import schedule
 import threading
 import time
+from flask_cors import CORS
 
 from lookups.buscasas import conf_sas, read_file, get_token_and_write, get_domains, get_content, get_current_contents, create_domains, create_domains_entries, update_entries,create_domains_and_entries
 from folders.segments import create_segmento,edit_segmento,list_segmentos,verify_folder_root_or_create
@@ -46,8 +47,9 @@ get_root(token)
 
 
 # Iniciamos o aplicativo Flask
-app = Flask(__name__)
+app = Flask(__name__,template_folder="./templates")
 app.config['DEBUG'] = True
+CORS(app)
 
 
 # Definimos as rotas da API

@@ -51,7 +51,7 @@ def verify_folder_root_or_create(token):
                 print("Falha ao criar a pasta.")
                 print("Status code:", create_folder_response.status_code)
                 print("Texto da resposta:", create_folder_response.text)
-                raise Exception("Failed to create folder.")
+                raise Exception("Falha ao  criar o Folder.")
         else:
             print("Falha ao recuperar as pastas.")
             print("Status code:", response.status_code)
@@ -59,7 +59,7 @@ def verify_folder_root_or_create(token):
             raise Exception("Failed to retrieve folders.")
     except Exception as e:
         print("Erro durante a solicitação:", e)
-        raise Exception("Failed to retrieve folders.")
+        raise Exception("Falha ao tentar criar o Folders")
 
 
 def create_segmento(token,global_uri):
@@ -67,19 +67,25 @@ def create_segmento(token,global_uri):
 
     # Verificar se 'is_ativo' está presente no JSON e é um valor booleano
     if "is_ativo" not in data or not isinstance(data["is_ativo"], bool):
-        return jsonify({"error": "'is_ativo' é obrigatório e deve ser um booleano"}), 400
+        return jsonify({"error": "'is_ativo' é obrigatório e deve ser um booleano","campos_error":["is_ativo"]}), 400
 
     nome = data.get('nome')
     descricao = data.get('descricao', '')
 
+    if not nome:
+        return jsonify({"error": "'nome' é obrigatório","campos_error":["nome"]}), 400
+    
+    elif not descricao:
+        return jsonify({"error": "'descricao' é obrigatório ","campos_error":["descricao"]}), 400
+
     # Verificar se 'nome' e 'descricao' estão presentes e são válidos
-    if not nome or not descricao or len(descricao) > 140:
-        return jsonify({"error": "Nome e descrição são obrigatórios e a descrição deve ter no máximo 140 caracteres"}), 400
+    elif len(descricao) > 140:
+        return jsonify({"error": "Descrição deve ter no máximo 140 caracteres","campos_error":["descricao"]}), 400
 
     # Validação do campo 'nome' usando expressão regular
     name_regex = re.compile(r"^[A-Za-z0-9_]+$")
     if not name_regex.match(nome):
-        return jsonify({"error": "Nome deve conter apenas letras, números ou underscores"}), 400
+        return jsonify({"error": "Nome deve conter apenas letras, números ou underscores","campos_error":["nome"]}), 400
 
     # Pegar o valor de 'is_ativo' do JSON
     is_ativo = data.get('is_ativo', True)
@@ -110,7 +116,12 @@ def create_segmento(token,global_uri):
             response = requests.post(url, json=payload, headers=headers, verify=False)
 
         if response.status_code != 201:
-            raise Exception("Failed to create segmento in SAS Intelligence Design ", response.json())
+            cur.execute("SELECT * FROM segmento WHERE nome = %s",(nome,))
+            existing_cluster = cur.fetchone()
+            if existing_cluster:
+                return jsonify({"error": "O segmento ja existe","campos_error":["nome"]}), 400
+            error_type = response.json()
+            raise Exception("Falha ao criar o segmento no SAS Intelligence Design ", error_type["message"])
         
         response_data = response.json()
 
@@ -132,7 +143,7 @@ def create_segmento(token,global_uri):
         )
         conn.commit()
             
-        return jsonify({"message": "Segmento created successfully", "id": segmento_id, "response": response_data}), 201
+        return jsonify({"message": "Segmento Criado com Sucesso", "id": segmento_id, "response": response_data}), 201
     except Exception as e:
         conn.rollback()
         return jsonify({"error": str(e)}), 500
@@ -183,7 +194,7 @@ def edit_segmento():
         )
         conn.commit()
 
-        return jsonify({"message": "Segmento updated successfully"}), 200
+        return jsonify({"message": "Segmento Atualizado com Sucesso"}), 200
     except Exception as e:
         conn.rollback()
         return jsonify({"error": str(e)}), 500
