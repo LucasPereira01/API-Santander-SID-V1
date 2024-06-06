@@ -5,17 +5,23 @@ import re
 from datetime import datetime
 from db import get_db_connection
 import requests
+from dotenv import load_dotenv
+import os
+
+# Carrega as variáveis de ambiente do arquivo .env
+load_dotenv()
+
+# Acesso à variável de ambiente
+url_path_sid = os.getenv("URL_PATH_SID")
+URL_PATH_ANALYTICS_SID = os.getenv("URL_PATH_ANALYTICS_SID")
 
 app = Flask(__name__)
 
-
-
-def criar_politica(token):
+def criar_politica(token,cluster_id):
         # Obtém os dados da requisição JSON
         data = request.get_json()
 
         # Extrai os dados do JSON
-        cluster_id = data.get('cluster_id')
         nome = data.get('nome')
         descricao = data.get('descricao', '')
         is_ativo = data.get('is_ativo', True)
@@ -35,8 +41,8 @@ def criar_politica(token):
                 return jsonify({"error": "'cluster_id' é obrigatório ","campos_error":["cluster_id"]}), 400
             # Verificar se 'nome' e 'descricao' estão presentes e são válidos
 
-        elif len(descricao) > 140:
-                return jsonify({"error": "Descrição deve ter no máximo 140 caracteres","campos_error":["descricao"]}), 400
+        elif len(descricao) > 350:
+                return jsonify({"error": "Descrição deve ter no máximo 350 caracteres","campos_error":["descricao"]}), 400
 
             
             # Validação do campo 'nome' usando expressão regular
@@ -77,7 +83,7 @@ def criar_politica(token):
         }
         try:
 
-            url = "https://server.demo.sas.com/folders/folders"
+            url = f"{url_path_sid}/folders/folders"
 
             path_cluster = {"parentFolderUri": sas_parent_folder_uri_cluster}  # Define o path_cluster se a pasta raiz foi encontrada
             
@@ -125,11 +131,23 @@ def criar_politica(token):
 
 
 
-def edit_politica():
+def edit_politica(politica_id):
     data = request.get_json()
-    politca_id = data.get('id')
     descricao = data.get('descricao', '')
     is_ativo = data.get('is_ativo', True)
+
+    # Verificar se 'is_ativo' está presente no JSON e é um valor booleano
+    if "is_ativo" not in data or not isinstance(data["is_ativo"], bool):
+        return jsonify({"error": "'is_ativo' é obrigatório e deve ser um booleano","campos_error":["is_ativo"]}), 400
+    
+    elif not descricao:
+        return jsonify({"error": "'descricao' é obrigatório ","campos_error":["descricao"]}), 400
+
+    elif not politica_id:
+            return jsonify({"error": "'politica_id' é obrigatório ","campos_error":["politica_id"]}), 400
+
+    elif len(descricao) > 350:
+                return jsonify({"error": "Descrição deve ter no máximo 350 caracteres","campos_error":["descricao"]}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -138,7 +156,7 @@ def edit_politica():
 
     try:
         # verifica se exite o id na table
-        cur.execute("SELECT 1 FROM  politica WHERE id = %s",(politca_id,))
+        cur.execute("SELECT 1 FROM  politica WHERE id = %s",(politica_id,))
         politica_existe = cur.fetchone()
 
         if not politica_existe:
@@ -150,11 +168,11 @@ def edit_politica():
             SET descricao = %s, is_ativo = %s, updated_at = %s
             WHERE id = %s
             """,
-            (descricao, is_ativo, updated_at, politca_id)
+            (descricao, is_ativo, updated_at, politica_id)
         )
         conn.commit()
 
-        return jsonify({"message": "Politica Atualizada com Sucesso"}), 200
+        return jsonify({"message": "Politica Atualizada com Sucesso","id":politica_id}), 200
     except Exception as e:
         conn.rollback()
         return jsonify({"error": str(e)}), 500
@@ -209,3 +227,54 @@ def busca_all_politica():
     finally:
         if conn is not None:
             conn.close()
+
+
+
+def list_politica_id(politica_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT 
+                p.id, p.nome, p.descricao, p.is_ativo, p.sas_folder_id, p.sas_parent_folder_uri, p.created_at, p.updated_at, 
+                c.id AS cluster_id, c.nome AS cluster_nome, c.is_ativo AS cluster_ativo, 
+                s.id AS segmento_id, s.nome AS segmento_nome, s.is_ativo AS segmento_ativo
+            FROM politica p
+            JOIN clusters c ON p.cluster_id = c.id
+            JOIN segmento s ON c.segmento_id = s.id
+            WHERE p.id = %s
+        """, (politica_id,))
+        politica = cur.fetchone()
+        
+        if politica:
+            result = {
+                "id": politica[0],
+                "nome": politica[1],
+                "descricao": politica[2],
+                "is_ativo": politica[3],
+                "sas_folder_id": politica[4],
+                "sas_parent_folder_uri": politica[5],
+                "created_at": politica[6],
+                "updated_at": politica[7],
+                "cluster_id": politica[8],
+                "cluster": {
+                    "id": politica[8],
+                    "nome": politica[9],
+                    "cluster_ativo": politica[10],
+                    "segmento": {
+                        "id": politica[11],
+                        "nome": politica[12],
+                        "segmento_ativo": politica[13]
+                    }
+                }
+            }
+        else:
+            return jsonify({"error": "Política não encontrada"}), 404
+
+        return jsonify(result)
+    except Exception as e:
+        print(f"Erro ao listar política: {e}")
+        return None
+    finally:
+        cur.close()
+        conn.close()

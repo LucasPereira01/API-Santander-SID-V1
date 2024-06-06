@@ -6,9 +6,9 @@ import time
 from flask_cors import CORS
 
 from lookups.buscasas import conf_sas, read_file, get_token_and_write, get_domains, get_content, get_current_contents, create_domains, create_domains_entries, update_entries,create_domains_and_entries
-from folders.segments import create_segmento,edit_segmento,list_segmentos,verify_folder_root_or_create
-from folders.clusters import criar_cluster,busca_all_cluster,edit_cluster
-from folders.politcs import criar_politica,edit_politica,busca_all_politica
+from folders.segments import create_segmento,edit_segmento,list_segmentos,list_segmentos_id
+from folders.clusters import criar_cluster,busca_all_cluster,edit_cluster,buscar_cluster_id
+from folders.politcs import criar_politica,edit_politica,busca_all_politica,list_politica_id
 
 global_uri = None
 
@@ -32,18 +32,6 @@ schedule_thread.start()
 token = read_file()
 if not token:
     get_token_and_write()  # Se não existir, obtém um novo token e armazena
-
-
-def get_root(token):
-    global global_uri
-    if global_uri is not None:
-        print("Existing global Uri: "+ global_uri)
-        return global_uri
-    
-    else:
-        global_uri = verify_folder_root_or_create(token)
-    return global_uri 
-get_root(token)
 
 
 # Iniciamos o aplicativo Flask
@@ -83,9 +71,9 @@ def create_domains_entries_route():
     return create_domains_entries(token) """
 
 
-@app.route('/api/v1/create_domains_entries', methods=['POST'])
-def create_domains_entries_route():
-    return create_domains_and_entries(token)
+@app.route('/api/v1/domains/<string:id_politica>', methods=['POST'])
+def create_domains_entries_route(id_politica):
+    return create_domains_and_entries(token,id_politica)
 
 
 @app.route('/api/v1/update_entries', methods=['PATCH'])
@@ -99,41 +87,52 @@ def create_segments():
     return create_segmento(token, global_uri)
 
 
-@app.route('/api/v1/front/segmentos', methods=['PUT'])
-def edit_segmentos():
-    return edit_segmento()
+@app.route('/api/v1/front/segmentos/<string:segmento_id>', methods=['PUT'])
+def edit_segmentos(segmento_id):
+    return edit_segmento(segmento_id)
 
 
 @app.route('/api/v1/front/segmentos', methods=['GET'])
 def list_all_segmentos():
     return list_segmentos()
 
+@app.route('/api/v1/front/segmentos/<string:segmento_id>', methods=['GET'])
+def list_id_segmentos(segmento_id):
+    return list_segmentos_id(segmento_id)
+
 
 # Clusters
-@app.route('/api/v1/front/clusters', methods=['POST'])
-def create_cluster():
-    return criar_cluster(token)
+@app.route('/api/v1/front/clusters/<string:segmento_id>', methods=['POST'])
+def create_cluster(segmento_id):
+    return criar_cluster(token,segmento_id)
 
 
 @app.route('/api/v1/front/clusters', methods=['GET'])
 def get_all_cluster():
     return busca_all_cluster()
 
+@app.route('/api/v1/front/clusters/<string:cluster_id>', methods=['GET'])
+def list_id_cluster(cluster_id):
+    return buscar_cluster_id(cluster_id)
+    
 
-@app.route('/api/v1/front/clusters', methods=['PUT'])
-def alter_cluster():
-    return edit_cluster()
 
-
+@app.route('/api/v1/front/clusters/<string:cluster_id>', methods=['PUT'])
+def alter_cluster(cluster_id):
+    return edit_cluster(cluster_id)
+    
 # Politicas
-@app.route('/api/v1/front/politicas', methods=['POST'])
-def create_politica():
-    return criar_politica(token)
+@app.route('/api/v1/front/politicas/<string:cluster_id>', methods=['POST'])
+def create_politica(cluster_id):
+    return criar_politica(token,cluster_id)
 
+@app.route('/api/v1/front/politicas/<string:politica_id>', methods=['GET'])
+def lit_id_politica(politica_id):
+    return list_politica_id(politica_id)
 
-@app.route('/api/v1/front/politicas', methods=['PUT'])
-def alter_politica():
-    return edit_politica()
+@app.route('/api/v1/front/politicas/<string:politica_id>', methods=['PUT'])
+def alter_politica(politica_id):
+    return edit_politica(politica_id)
 
 
 @app.route('/api/v1/front/politicas', methods=['GET'])

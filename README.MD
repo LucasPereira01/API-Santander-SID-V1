@@ -11,18 +11,18 @@ Siga os passos abaixo para configurar o ambiente e instalar as dependências nec
 1. Crie um ambiente virtual:
 
    ```bash
-   python -m venv myenv
+   python -m venv venv
    ```
 
 2. Ative o ambiente virtual:
 
    - No Windows:
      ```bash
-     myenv\Scripts\activate
+     venv\Scripts\activate
      ```
    - No macOS e Linux:
      ```bash
-     source myenv/bin/activate
+     source venv/bin/activate
      ```
 
 ### Instalar Dependências
@@ -38,3 +38,18 @@ pip install -r requirements.txt
 ```bash
 pip freeze > requirements.txt
 ```
+### minificar o codigo
+```bash
+pip install pyarmor
+pyarmor pack -x  "--exclude dist" -e "--onefile"  main.py
+```
+
+### Criar o Executavel
+```bash
+pyinstaller --onefile --strip --noconfirm main.min.py
+```
+### Executar 
+```bash
+cd dist ./main.min
+```
+

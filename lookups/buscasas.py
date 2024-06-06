@@ -2,6 +2,17 @@ from flask import Flask, make_response, jsonify, request
 import requests
 import schedule
 from db import get_db_connection
+from dotenv import load_dotenv
+import os
+
+# Carrega as variáveis de ambiente do arquivo .env
+load_dotenv()
+
+# Acesso à variável de ambiente
+url_path_sid = os.getenv("URL_PATH_SID")
+url_path_sid_analytics = os.getenv("URL_PATH_ANALYTICS_SID")
+user_name_sid = os.getenv("USER_NAME_SID")
+password_sid = os.getenv("PASSWORD_SID")
 
 
 # Função para ler o token de um arquivo
@@ -22,8 +33,8 @@ def write_file(s):
 
 # Função para obter o token
 def get_token():
-    url = "https://server.demo.sas.com/SASLogon/oauth/token"
-    payload = 'username=sasdemo&password=Orion123&grant_type=password'
+    url = f"{url_path_sid}/SASLogon/oauth/token"
+    payload = f'username={user_name_sid}&password={password_sid}&grant_type=password'
     headers = {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Authorization': 'Basic c2FzLmVjOg==',
@@ -45,7 +56,7 @@ def get_token_and_write():
 
 # Função para configurar o SAS
 def conf_sas(token):
-    url = "https://server.demo.sas.com/catalog/instances"
+    url = f"{url_path_sid}/catalog/instances"
     headers = {
         'Authorization': f'Bearer {token}',
         'Cookie': 'sas-ingress-nginx=18f200a6fe34881de5eda1d98bcfcc5e|c71550a7073ca099de18546200bef179'
@@ -60,7 +71,7 @@ def conf_sas(token):
 # Função para obter os domínios e retornar id e nome
 def get_domains(token):
     try:
-        url = "https://server.demo.sas.com/referenceData/domains"
+        url =f"{url_path_sid}/referenceData/domains"
         headers = {
             'Authorization': f'Bearer {token}',
             'Accept': 'application/vnd.sas.collection+json, application/json, application/vnd.sas.error+json'
@@ -79,8 +90,6 @@ def get_domains(token):
                     "modifiedBy": item["modifiedBy"]
                 }
                 domain_info.append(domain_data)
-                # Printando informações de debug para cada domínio
-                print(f"ID: {domain_data['id']}, Name: {domain_data['name']}")
             return domain_info
         else:
             return jsonify({"error": response.text}), response.status_code
@@ -104,7 +113,7 @@ def get_content(token, name=None):
         if domain:
             domainId = domain["id"]
 
-            url = f"https://server.demo.sas.com/referenceData/domains/{domainId}/contents/"
+            url = f"{url_path_sid}/referenceData/domains/{domainId}/contents/"
 
             authorization = f'Bearer {token}'
             headers = {
@@ -168,7 +177,7 @@ def get_current_contents(token):
             domainId = domain["id"]
            
             # Agora que temos o ID do domínio, podemos usar para fazer a solicitação de conteúdo
-            url = f"https://server.demo.sas.com/referenceData/domains/{domainId}/currentContents/"
+            url = f"{url_path_sid}/referenceData/domains/{domainId}/currentContents/"
            
             # Autorização e headers
             authorization = f'Bearer {token}'
@@ -230,7 +239,7 @@ def create_domains(token):
         if domain["name"] == new_domain_name:
             return jsonify({"error": f"O domínio '{new_domain_name}' já existe."}), 400
     
-    url = f"https://server.demo.sas.com/referenceData/domains?parentFolderUri={sas_parent_folder_uri_cluster}"
+    url = f"{url_path_sid}/referenceData/domains?parentFolderUri={sas_parent_folder_uri_cluster}"
 
     # Criação do payload com base nos dados recebidos na solicitação
     payload = {
@@ -288,7 +297,7 @@ def create_domains_entries(token):
         return jsonify({"error": f"O domínio '{domain_name}' não foi encontrado."}), 404
     
     # Constrói a URL com o ID do domínio para criar as entradas
-    url = f"https://server.demo.sas.com/referenceData/domains/{domain_id}/contents"
+    url = f"{url_path_sid}/referenceData/domains/{domain_id}/contents"
     
     # Payload com os dados das entradas
     payload = {
@@ -354,21 +363,20 @@ def update_entries(token):
                 # Extrai o ID da URI
                 uri_id = extract_id_from_uri(uri)
                 matching_uris.append(uri)
-        
+        print(matching_uris)
         # Verifica se há URIs correspondentes
         if not matching_uris:
             return {"error": "Nenhuma URI correspondente encontrada para o domínio."}, 404
         
         # Se houver mais de uma URI correspondente, retorne um erro, pois a correspondência é ambígua
-        """ if len(matching_uris) > 1:
-            return {"error": "Múltiplas URIs correspondentes encontradas para o domínio. A correspondência é ambígua."}, 500 """
+        if len(matching_uris) >= 2:
+            matched_uri = matching_uris[2]
+        else:
+            return {"error": "Não há URI correspondente suficiente para atualização"}, 404
         
-        # Obtém a URI correspondente
-        matched_uri = matching_uris[1]
-        print(matched_uri)
         
         # Constrói a URL com base na URI correspondente
-        url = f"https://server.demo.sas.com{matched_uri}/entries"
+        url = f"{url_path_sid}{matched_uri}/entries"
         
         # Payload com as operações de atualização
         payload = request.json.get("data")
@@ -417,11 +425,10 @@ def update_entries(token):
 
 
 
-def create_domains_and_entries(token):
-    domains = get_domains(token)
+def create_domains_and_entries(token,id_politica):
+    all_domains = get_domains(token)
     body = request.json
-    new_domain_name = body.get("name")
-    id_politica = body.get("id_politica")
+    name = body.get("name")
     entries = body.get("entries")
 
     conn = get_db_connection()
@@ -434,16 +441,19 @@ def create_domains_and_entries(token):
         
 
     sas_parent_folder_uri_cluster = politica[5]
+    #sas_parent_folder_uri_cluster = politica[politica.index("id")]
+
     
+    domains = all_domains
     # Verifica se o nome do novo domínio já existe
     for domain in domains:
-        if domain["name"] == new_domain_name:
-            return jsonify({"error": f"O domínio '{new_domain_name}' já existe."}), 400
-    url = f"https://server.demo.sas.com/referenceData/domains?parentFolderUri={sas_parent_folder_uri_cluster}"
+        if domain["name"] == name:
+            return jsonify({"error": f"O domínio '{name}' já existe."}), 400
+    url = f"{url_path_sid}/domains?parentFolderUri={sas_parent_folder_uri_cluster}"
 
     # Criação do payload com base nos dados recebidos na solicitação
     payload = {
-        "name": new_domain_name,
+        "name": name,
         "description": body.get("description"),
         "domainType": "lookup",
         "checkout":body.get("checkout")
@@ -474,7 +484,7 @@ def create_domains_and_entries(token):
         
         if entries :
                     # Constrói a URL com o ID do domínio para criar as entradas
-            url_entries = f"https://server.demo.sas.com/referenceData/domains/{domain_info["id"]}/contents"
+            url_entries = f"{url_path_sid}/referenceData/domains/{domain_info["id"]}/contents"
             
             # Payload com os dados das entradas
             payload = {

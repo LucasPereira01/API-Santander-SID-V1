@@ -8,6 +8,15 @@ from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from dotenv import load_dotenv
 import re
 import requests
+from dotenv import load_dotenv
+import os
+
+# Carrega as variáveis de ambiente do arquivo .env
+load_dotenv()
+
+# Acesso à variável de ambiente
+url_path_sid = os.getenv("URL_PATH_SID")
+URL_PATH_ANALYTICS_SID = os.getenv("URL_PATH_ANALYTICS_SID")
 
 app = Flask(__name__)
 
@@ -53,22 +62,28 @@ def busca_all_cluster():
 
         return jsonify(result)
     except (Exception, psycopg2.DatabaseError) as error:
-        print(f"Erro ao buscar os clusters: {error}")
-        return jsonify({"error": "Failed to retrieve clusters"}), 500
+        return jsonify({"error": "Falha ao tentar buscar o clusters"}), 500
     finally:
         cur.close()
         conn.close()
 
 
-def buscar_cluster_id():
-    data = request.get_json()
-    id = data.get('id')
+def buscar_cluster_id(cluster_id):
     conn = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
-        cur.execute("SELECT * FROM clusters WHERE id = %s", (id,))
+        cur.execute("""
+            SELECT
+                c.id, c.nome, c.descricao, c.is_ativo, c.sas_folder_id,
+                c.sas_parent_folder_uri, c.created_at, c.updated_at, c.segmento_id,
+                s.nome AS segmento_nome, s.is_ativo AS segmento_ativo
+            FROM clusters c
+            JOIN segmento s ON c.segmento_id = s.id
+            WHERE c.id = %s
+        """, (cluster_id,))
+
         cluster = cur.fetchone()
         if cluster:
             result = {
@@ -80,23 +95,30 @@ def buscar_cluster_id():
                 "sas_parent_folder_uri": cluster[5],
                 "created_at": cluster[6],
                 "updated_at": cluster[7],
-                "segmento_id": cluster[8]
+                "segmento_id": cluster[8],
+                "segmento": {
+                    "id": cluster[8],
+                    "nome": cluster[9],
+                    "segmento_ativo": cluster[10]
+                }
             }
+            
             return jsonify(result)
-    
         else:
-            return None  
+            return jsonify({"error": "Cluster não encontrado"}), 404
     except (Exception, psycopg2.DatabaseError) as error:
         print(f"Erro ao buscar o cluster: {error}")
+        return jsonify({"error": f"Erro ao buscar o cluster: {error}"}), 500
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
-def criar_cluster(token):
+
+def criar_cluster(token,segmento_id):
         data = request.get_json()
-
-        segmento_id = data.get('segmento_id')
         nome = data.get('nome')
         descricao = data.get('descricao', '')
         is_ativo = data.get('is_ativo', True)
@@ -116,8 +138,8 @@ def criar_cluster(token):
             return jsonify({"error": "'segmento_id' é obrigatório ","campos_error":["segmento_id"]}), 400
         # Verificar se 'nome' e 'descricao' estão presentes e são válidos
 
-        elif len(descricao) > 140:
-            return jsonify({"error": "Descrição deve ter no máximo 140 caracteres","campos_error":["descricao"]}), 400
+        elif len(descricao) > 350:
+            return jsonify({"error": "Descrição deve ter no máximo 350 caracteres","campos_error":["descricao"]}), 400
 
         
         # Validação do campo 'nome' usando expressão regular
@@ -159,7 +181,7 @@ def criar_cluster(token):
         }
         try:
 
-            url = "https://server.demo.sas.com/folders/folders"
+            url = f"{url_path_sid}/folders/folders"
 
             path_segmentos = {"parentFolderUri": sas_parent_folder_uri_seg}  # Define o path_segmentos se a pasta raiz foi encontrada
             
@@ -194,7 +216,7 @@ def criar_cluster(token):
             cluster_id = cur.fetchone()[0]
 
             conn.commit()
-            return jsonify({"message": "Cluster created successfully", "id": cluster_id}), 201
+            return jsonify({"message": "Cluster Criado com Sucesso", "id": cluster_id}), 201
         except Exception as e:
             conn.rollback()
             return jsonify({"error": str(e)}), 500
@@ -203,24 +225,23 @@ def criar_cluster(token):
             conn.close()
 
 
-def edit_cluster():
+def edit_cluster(cluster_id):
     data = request.get_json()
-    cluster_id = data.get('id')
     descricao = data.get('descricao', '')
     is_ativo = data.get('is_ativo', True)
 
-     # Verificar se 'is_ativo' está presente no JSON e é um valor booleano
+    # Verificar se 'is_ativo' está presente no JSON e é um valor booleano
     if "is_ativo" not in data or not isinstance(data["is_ativo"], bool):
-        return jsonify({"error": "'is_ativo' é obrigatório e deve ser um booleano"}), 400
+        return jsonify({"error": "'is_ativo' é obrigatório e deve ser um booleano","campos_error":["is_ativo"]}), 400
 
     if not cluster_id:
-        return jsonify({"error": "cluster_id is required"}), 400
+        return jsonify({"error": "cluster_id é obrigatório","campos_error":["cluster_id"]}), 400
     
     if not descricao:
-        return jsonify({"error": "descricao is required"}), 400
+         return jsonify({"error": "'descricao' é obrigatório ","campos_error":["descricao"]}), 400
 
-    if len(descricao) > 140:
-        return jsonify({"error": "Invalid input"}), 400
+    if len(descricao) > 350:
+        return jsonify({"error": "Descrição deve ter no máximo 350 caracteres","campos_error":["descricao"]}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -245,7 +266,7 @@ def edit_cluster():
         )
         conn.commit()
 
-        return jsonify({"message": "Cluster updated successfully"}), 200
+        return jsonify({"message": "Cluster Atualizado com Sucesso","id":cluster_id}), 200
     except Exception as e:
         conn.rollback()
         return jsonify({"error": str(e)}), 500
