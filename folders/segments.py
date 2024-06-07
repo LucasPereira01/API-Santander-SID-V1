@@ -12,7 +12,7 @@ load_dotenv()
 
 # Acesso à variável de ambiente
 url_path_sid = os.getenv("URL_PATH_SID")
-URL_PATH_ANALYTICS_SID = os.getenv("URL_PATH_ANALYTICS_SID")
+url_path_sid_analytics = os.getenv("URL_PATH_ANALYTICS_SID")
 
 app = Flask(__name__)
 
@@ -81,23 +81,23 @@ def create_segmento(token,global_uri):
 
         sas_folder_id = response_data.get("id")
         if 'links' in response_data and len(response_data['links']) > 0:
-            sas_parent_folder_uri = response_data['links'][0]['uri']
+            sas_parent_uri = response_data['links'][0]['uri']
         else:
-            sas_parent_folder_uri = None
+            sas_parent_uri = None
         
-        if not sas_folder_id or not sas_parent_folder_uri:
+        if not sas_folder_id or not sas_parent_uri:
             raise Exception("'parentFolderUri' or 'id' not found in response data")
         
         cur.execute(
             """
-            INSERT INTO segmento (id, nome, descricao, is_ativo, sas_folder_id, sas_parent_folder_uri)
+            INSERT INTO segmento (id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri)
             VALUES (%s, %s, %s, %s, %s, %s)
             """,
-            (segmento_id, nome, descricao, is_ativo, sas_folder_id, sas_parent_folder_uri)
+            (segmento_id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri)
         )
         conn.commit()
             
-        return jsonify({"message": "Segmento Criado com Sucesso", "id": segmento_id, "response": response_data}), 201
+        return jsonify({"message": "Segmento Criado com Sucesso", "id": segmento_id}), 201
     except Exception as e:
         conn.rollback()
         return jsonify({"error": str(e)}), 500
@@ -161,7 +161,7 @@ def list_segmentos():
     cur = conn.cursor()
 
     try:
-        cur.execute("SELECT id, nome, descricao, is_ativo, sas_folder_id, sas_parent_folder_uri FROM segmento")
+        cur.execute("SELECT id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri FROM segmento")
         segmentos = cur.fetchall()
         result = [
             {
@@ -170,11 +170,11 @@ def list_segmentos():
                 "descricao": row[2],
                 "is_ativo": row[3],
                 "sas_folder_id": row[4],
-                "sas_parent_folder_uri": row[5]
+                "sas_parent_uri": row[5]
             }
             for row in segmentos
         ]
-
+        print(segmentos)
         return result
     except Exception as e:
         print(f"Erro ao listar segmentos: {e}")
@@ -187,7 +187,7 @@ def list_segmentos_id(segmento_id):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT id, nome, descricao, is_ativo, sas_folder_id, sas_parent_folder_uri FROM segmento WHERE id = %s",(segmento_id,))
+        cur.execute("SELECT id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri  FROM segmento WHERE id = %s",(segmento_id,))
         segmento = cur.fetchone()
         
         if segmento:
@@ -197,7 +197,7 @@ def list_segmentos_id(segmento_id):
                 "descricao": segmento[2],
                 "is_ativo": segmento[3],
                 "sas_folder_id": segmento[4],
-                "sas_parent_folder_uri": segmento[5]
+                "sas_parent_uri ": segmento[5]
             }
         else:
            return jsonify({"error": "Segmento não encontrado"}), 500

@@ -66,7 +66,7 @@ def criar_politica(token,cluster_id):
             return jsonify({"error":"Cluster nao encontrado"}),400
         
 
-        sas_parent_folder_uri_cluster = cluster[5]
+        sas_parent_uri_cluster = cluster[5]
         
 
         headers = {
@@ -85,7 +85,7 @@ def criar_politica(token,cluster_id):
 
             url = f"{url_path_sid}/folders/folders"
 
-            path_cluster = {"parentFolderUri": sas_parent_folder_uri_cluster}  # Define o path_cluster se a pasta raiz foi encontrada
+            path_cluster = {"parentFolderUri": sas_parent_uri_cluster}  # Define o path_cluster se a pasta raiz foi encontrada
             
             # Realiza a solicitação POST
             response = requests.post(url, json=payload, headers=headers, params=path_cluster, verify=False)
@@ -106,18 +106,18 @@ def criar_politica(token,cluster_id):
             
             # Obtém os dados relevantes da resposta
             sas_folder_id = response_data.get("id")
-            sas_parent_folder_uri = response_data.get("links", [{}])[0].get("uri")
+            sas_parent_uri = response_data.get("links", [{}])[0].get("uri")
 
             # Verifica se os dados necessários foram obtidos
-            if not sas_folder_id or not sas_parent_folder_uri:
+            if not sas_folder_id or not sas_parent_uri:
                 return jsonify({"error": "'parentFolderUri' or 'id' not found in response data"}), 500
             
             # Insere os dados do cluster no banco de dados
             cur.execute("""
-                INSERT INTO politica (id, nome, descricao, is_ativo, sas_folder_id, sas_parent_folder_uri, cluster_id) 
+                INSERT INTO politica (id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri, cluster_id) 
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            """, (politica_id, nome, descricao, is_ativo, sas_folder_id, sas_parent_folder_uri, cluster_id))
+            """, (politica_id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri, cluster_id))
             politica_id = cur.fetchone()[0]
 
             conn.commit()
@@ -188,7 +188,7 @@ def busca_all_politica():
         cur = conn.cursor()
         
 
-        cur.execute("""SELECT p.id, p.nome, p.descricao, p.is_ativo, p.sas_folder_id, p.sas_parent_folder_uri, p.created_at, p.updated_at, p.cluster_id,
+        cur.execute("""SELECT p.id, p.nome, p.descricao, p.is_ativo, p.sas_folder_id, p.sas_parent_uri, p.created_at, p.updated_at, p.cluster_id,
                     c.nome AS cluster_nome, c.is_ativo AS cluster_ativo, s.id ,s.nome AS segmento_name, s.is_ativo AS segmento_ativo
                      FROM politica p
                     JOIN clusters c ON p.cluster_id = c.id
@@ -204,7 +204,7 @@ def busca_all_politica():
                 "descricao": cluster[2],
                 "is_ativo": cluster[3],
                 "sas_folder_id": cluster[4],
-                "sas_parent_folder_uri": cluster[5],
+                "sas_parent_uri": cluster[5],
                 "created_at": cluster[6],
                 "updated_at": cluster[7],
                 "cluster_id": cluster[8],
@@ -236,7 +236,7 @@ def list_politica_id(politica_id):
     try:
         cur.execute("""
             SELECT 
-                p.id, p.nome, p.descricao, p.is_ativo, p.sas_folder_id, p.sas_parent_folder_uri, p.created_at, p.updated_at, 
+                p.id, p.nome, p.descricao, p.is_ativo, p.sas_folder_id, p.sas_parent_uri, p.created_at, p.updated_at, 
                 c.id AS cluster_id, c.nome AS cluster_nome, c.is_ativo AS cluster_ativo, 
                 s.id AS segmento_id, s.nome AS segmento_nome, s.is_ativo AS segmento_ativo
             FROM politica p
@@ -253,7 +253,7 @@ def list_politica_id(politica_id):
                 "descricao": politica[2],
                 "is_ativo": politica[3],
                 "sas_folder_id": politica[4],
-                "sas_parent_folder_uri": politica[5],
+                "sas_parent_uri": politica[5],
                 "created_at": politica[6],
                 "updated_at": politica[7],
                 "cluster_id": politica[8],

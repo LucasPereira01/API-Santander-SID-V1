@@ -40,52 +40,44 @@ def create_tables():
         CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
         """,
         """
-        CREATE TABLE IF NOT EXISTS parametro_status (
-            code VARCHAR(3) NOT NULL,
-            type VARCHAR(255) NOT NULL,
-            description TEXT NOT NULL,
-            PRIMARY KEY (code)
-        );
-        """,
-        """
         CREATE TABLE IF NOT EXISTS segmento (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            nome VARCHAR(255) NOT NULL UNIQUE,
-            descricao TEXT,
-            is_ativo BOOLEAN NOT NULL,
-            sas_folder_id VARCHAR(255) NOT NULL,
-            sas_parent_uri VARCHAR(255) NOT NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP
-        );
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        nome VARCHAR(255) NOT NULL UNIQUE,
+        descricao TEXT,
+        is_ativo BOOLEAN NOT NULL,
+        sas_folder_id TEXT,
+        sas_parent_uri TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP
+        )
         """,
         """
         CREATE TABLE IF NOT EXISTS clusters (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            nome VARCHAR(100) NOT NULL,
+            nome VARCHAR(255) NOT NULL,
             descricao TEXT,
             is_ativo BOOLEAN NOT NULL,
-            sas_folder_id VARCHAR(255) NOT NULL,
+            sas_folder_id TEXT NOT NULL,
             sas_parent_uri TEXT NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP,
             segmento_id UUID NOT NULL,
             FOREIGN KEY (segmento_id) REFERENCES segmento(id)
-        );
+        )
         """,
         """
         CREATE TABLE IF NOT EXISTS politica (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            nome VARCHAR(100) NOT NULL,
-            descricao TEXT NOT NULL,
+            nome VARCHAR(255) NOT NULL,
+            descricao TEXT,
             is_ativo BOOLEAN NOT NULL,
-            sas_folder_id VARCHAR(255) NOT NULL,
+            sas_folder_id TEXT NOT NULL,
             sas_parent_uri TEXT NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP,
             cluster_id UUID NOT NULL,
             FOREIGN KEY (cluster_id) REFERENCES clusters(id)
-        );
+        )
         """,
         """
         CREATE TABLE IF NOT EXISTS parametrizador (
@@ -94,73 +86,57 @@ def create_tables():
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP,
             deleted_at TIMESTAMP,
-            politica_id UUID NOT NULL,
+            politica_id UUID NOT NULL, 
             parametrizador_id UUID,
-            usuario_id UUID NOT NULL,
-            FOREIGN KEY (politica_id) REFERENCES politica(id),
-            FOREIGN KEY (parametrizador_id) REFERENCES parametrizador(id)
-        );
+            usuario_id UUID NOT NULL, 
+            FOREIGN KEY (politica_id) REFERENCES politica(id), 
+            FOREIGN KEY (parametrizador_id) REFERENCES parametrizador(id) 
+        )
         """,
         """
         CREATE TABLE IF NOT EXISTS parametro (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            nome VARCHAR(100) NOT NULL,
+            nome VARCHAR(255) NOT NULL,
             descricao TEXT,
             modo VARCHAR(10) NOT NULL,
             data_hora_vigencia TIMESTAMP NOT NULL,
             versao VARCHAR(255) NOT NULL,
-            is_vigente BOOLEAN NOT NULL,
-            sas_domain_id VARCHAR(255),
-            sas_content_id VARCHAR(255),
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP,
-            deleted_at TIMESTAMP,
-            status_code VARCHAR(3) NOT NULL,
-            parametro_parent_id UUID,
-            politica_id UUID NOT NULL,
-            sas_user_id VARCHAR(255) NOT NULL,
-            FOREIGN KEY (parametro_parent_id) REFERENCES parametro(id),
-            FOREIGN KEY (politica_id) REFERENCES politica(id),
-            FOREIGN KEY (status_code) REFERENCES parametro_status(code)
-        );
+            parametrizador_id UUID NOT NULL,
+            FOREIGN KEY (parametrizador_id) REFERENCES parametrizador(id)
+        )
         """,
         """
         CREATE TABLE IF NOT EXISTS variavel (
-            id UUID NOT NULL DEFAULT uuid_generate_v4(),
-            nome VARCHAR(100) NOT NULL,
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            nome VARCHAR(255) NOT NULL,
             descricao TEXT,
-            tipo VARCHAR(255) NOT NULL,
+            tipo VARCHAR(10) NOT NULL,
             is_chave BOOLEAN NOT NULL,
             tamanho INTEGER NOT NULL,
             qtd_casas_decimais INTEGER,
             parametro_id UUID NOT NULL,
-            PRIMARY KEY (id),
             FOREIGN KEY (parametro_id) REFERENCES parametro(id)
-        );
+        )
         """,
         """
         CREATE TABLE IF NOT EXISTS variavel_lista (
-            id UUID NOT NULL DEFAULT uuid_generate_v4(),
-            nome VARCHAR(100) NOT NULL,
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            nome VARCHAR(255) NOT NULL,
             is_visivel BOOLEAN NOT NULL,
             variavel_id UUID NOT NULL,
-            PRIMARY KEY (id),
             FOREIGN KEY (variavel_id) REFERENCES variavel(id)
-        );
+        )
         """,
         """
         CREATE TABLE IF NOT EXISTS dado (
-            id UUID NOT NULL DEFAULT uuid_generate_v4(),
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
             informacao JSON NOT NULL,
-            sas_key TEXT,
-            sas_value TEXT,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP,
             deleted_at TIMESTAMP,
-            parametro_id UUID NOT NULL,
-            PRIMARY KEY (id),
-            FOREIGN KEY (parametro_id) REFERENCES parametro(id)
-        );
+            parametrizador_id UUID NOT NULL,
+            FOREIGN KEY (parametrizador_id) REFERENCES parametrizador(id)
+        )
         """,
         """
         CREATE TABLE IF NOT EXISTS parametrizador_sas (
@@ -172,7 +148,7 @@ def create_tables():
             sas_id UUID,
             parametrizador_id UUID NOT NULL,
             FOREIGN KEY (parametrizador_id) REFERENCES parametrizador(id)
-        );
+        )
         """,
         """
         CREATE TABLE IF NOT EXISTS parametrizador_sas_historico (
@@ -182,7 +158,7 @@ def create_tables():
             usuario_id UUID NOT NULL,
             parametrizador_sas_id UUID NOT NULL,
             FOREIGN KEY (parametrizador_sas_id) REFERENCES parametrizador_sas(id)
-        );
+        )
         """
     )
     

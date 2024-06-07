@@ -5,10 +5,11 @@ import threading
 import time
 from flask_cors import CORS
 
-from lookups.buscasas import conf_sas, read_file, get_token_and_write, get_domains, get_content, get_current_contents, create_domains, create_domains_entries, update_entries,create_domains_and_entries
-from folders.segments import create_segmento,edit_segmento,list_segmentos,list_segmentos_id
-from folders.clusters import criar_cluster,busca_all_cluster,edit_cluster,buscar_cluster_id
-from folders.politcs import criar_politica,edit_politica,busca_all_politica,list_politica_id
+from lookups.buscasas import *
+from lookups.parametros.parametros import *
+from folders.segments import *
+from folders.clusters import *
+from folders.politcs import *
 
 global_uri = None
 
@@ -66,9 +67,9 @@ def create_domains_route():
     return create_domains(token)
 
 
-""" @app.route('/api/v1/create_domains_entries', methods=['POST'])
+""" @app.route('/api/v1/domains', methods=['POST'])
 def create_domains_entries_route():
-    return create_domains_entries(token) """
+    return create_domains_and_entries(token) """
 
 
 @app.route('/api/v1/domains/<string:id_politica>', methods=['POST'])
@@ -80,6 +81,10 @@ def create_domains_entries_route(id_politica):
 def update_entries_route():
     return update_entries(token)
 
+###Parametros no banco
+@app.route('/api/v1/parametros/<string:id_politica>', methods=['POST'])
+def create_parametro_base(id_politica):
+    return create_parametro(id_politica)
 
 ### Folders
 @app.route('/api/v1/front/segmentos', methods=['POST'])

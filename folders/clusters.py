@@ -33,7 +33,7 @@ def busca_all_cluster():
         cur.execute("""
             SELECT
                 c.id, c.nome, c.descricao, c.is_ativo, c.sas_folder_id,
-                c.sas_parent_folder_uri, c.created_at, c.updated_at, c.segmento_id,
+                c.sas_parent_uri, c.created_at, c.updated_at, c.segmento_id,
                 s.nome AS segmento_nome, s.is_ativo AS segmento_ativo
             FROM clusters c
             JOIN segmento s ON c.segmento_id = s.id
@@ -49,7 +49,7 @@ def busca_all_cluster():
                 "descricao": cluster[2],
                 "is_ativo": cluster[3],
                 "sas_folder_id": cluster[4],
-                "sas_parent_folder_uri": cluster[5],
+                "sas_parent_uri": cluster[5],
                 "created_at": cluster[6],
                 "updated_at": cluster[7],
                 "segmento_id": cluster[8],
@@ -77,7 +77,7 @@ def buscar_cluster_id(cluster_id):
         cur.execute("""
             SELECT
                 c.id, c.nome, c.descricao, c.is_ativo, c.sas_folder_id,
-                c.sas_parent_folder_uri, c.created_at, c.updated_at, c.segmento_id,
+                c.sas_parent_uri, c.created_at, c.updated_at, c.segmento_id,
                 s.nome AS segmento_nome, s.is_ativo AS segmento_ativo
             FROM clusters c
             JOIN segmento s ON c.segmento_id = s.id
@@ -92,7 +92,7 @@ def buscar_cluster_id(cluster_id):
                 "descricao": cluster[2],
                 "is_ativo": cluster[3],
                 "sas_folder_id": cluster[4],
-                "sas_parent_folder_uri": cluster[5],
+                "sas_parent_uri": cluster[5],
                 "created_at": cluster[6],
                 "updated_at": cluster[7],
                 "segmento_id": cluster[8],
@@ -162,9 +162,9 @@ def criar_cluster(token,segmento_id):
             return jsonify({"error":"Segmento nao encontrado"}),400
         
 
-        sas_parent_folder_uri_seg = segmento[5]
+        sas_parent_uri_seg = segmento[5]
         print('Path segmento:')
-        print(sas_parent_folder_uri_seg)
+        print(sas_parent_uri_seg)
 
 
         headers = {
@@ -183,7 +183,7 @@ def criar_cluster(token,segmento_id):
 
             url = f"{url_path_sid}/folders/folders"
 
-            path_segmentos = {"parentFolderUri": sas_parent_folder_uri_seg}  # Define o path_segmentos se a pasta raiz foi encontrada
+            path_segmentos = {"parentFolderUri": sas_parent_uri_seg}  # Define o path_segmentos se a pasta raiz foi encontrada
             
             response = requests.post(url, json=payload, headers=headers, params=path_segmentos, verify=False)
 
@@ -201,18 +201,18 @@ def criar_cluster(token,segmento_id):
             
             # Obtém os dados relevantes da resposta
             sas_folder_id = response_data.get("id")
-            sas_parent_folder_uri = response_data.get("links", [{}])[0].get("uri")
+            sas_parent_uri = response_data.get("links", [{}])[0].get("uri")
 
             # Verifica se os dados necessários foram obtidos
-            if not sas_folder_id or not sas_parent_folder_uri:
+            if not sas_folder_id or not sas_parent_uri:
                 return jsonify({"error": "'parentFolderUri' or 'id' not found in response data"}), 500
             
             # Insere os dados do cluster no banco de dados
             cur.execute("""
-                INSERT INTO clusters (id, nome, descricao, is_ativo, sas_folder_id, sas_parent_folder_uri, segmento_id) 
+                INSERT INTO clusters (id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri, segmento_id) 
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            """, (cluster_id, nome, descricao, is_ativo, sas_folder_id, sas_parent_folder_uri, segmento_id))
+            """, (cluster_id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri, segmento_id))
             cluster_id = cur.fetchone()[0]
 
             conn.commit()
