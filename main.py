@@ -11,6 +11,8 @@ from folders.segments import *
 from folders.clusters import *
 from folders.politcs import *
 
+from users.users import *
+
 global_uri = None
 
 # Programamos a atualização do token a cada 55 minutos
@@ -46,6 +48,9 @@ CORS(app)
 def get_buscasas():
     return conf_sas(token)
 
+@app.route('/api/v1/front/login', methods=['POST'])
+def get_login():
+    return login()
 
 @app.route('/api/v1/domains', methods=['GET'])
 def get_domains_route():
@@ -152,5 +157,7 @@ def get_index():
 
 
 if __name__ == "__main__":
-    #app.run(debug=True, ssl_context='adhoc')
     app.run(app.run(port=8080), debug=True, ssl_context='adhoc')
+    #app.run(debug=True, ssl_context='adhoc')
+    #app.run(port=8080, debug=True, ssl_context='adhoc') usar com https no postaman
+
