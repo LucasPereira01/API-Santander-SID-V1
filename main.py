@@ -112,9 +112,9 @@ def list_id_segmentos(segmento_id):
 
 
 # Clusters
-@app.route('/api/v1/front/clusters/<string:segmento_id>', methods=['POST'])
-def create_cluster(segmento_id):
-    return criar_cluster(token,segmento_id)
+@app.route('/api/v1/front/clusters', methods=['POST'])
+def create_cluster():
+    return criar_cluster(token)
 
 
 @app.route('/api/v1/front/clusters', methods=['GET'])
@@ -132,9 +132,9 @@ def alter_cluster(cluster_id):
     return edit_cluster(cluster_id)
     
 # Politicas
-@app.route('/api/v1/front/politicas/<string:cluster_id>', methods=['POST'])
-def create_politica(cluster_id):
-    return criar_politica(token,cluster_id)
+@app.route('/api/v1/front/politicas', methods=['POST'])
+def create_politica():
+    return criar_politica(token)
 
 @app.route('/api/v1/front/politicas/<string:politica_id>', methods=['GET'])
 def lit_id_politica(politica_id):

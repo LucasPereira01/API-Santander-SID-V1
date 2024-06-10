@@ -17,12 +17,13 @@ URL_PATH_ANALYTICS_SID = os.getenv("URL_PATH_ANALYTICS_SID")
 
 app = Flask(__name__)
 
-def criar_politica(token,cluster_id):
+def criar_politica(token):
         # Obtém os dados da requisição JSON
         data = request.get_json()
-
+        
         # Extrai os dados do JSON
         nome = data.get('nome')
+        cluster_id = data.get('cluster_id')
         descricao = data.get('descricao', '')
         is_ativo = data.get('is_ativo', True)
 

@@ -117,9 +117,10 @@ def buscar_cluster_id(cluster_id):
 
 
 
-def criar_cluster(token,segmento_id):
+def criar_cluster(token):
         data = request.get_json()
         nome = data.get('nome')
+        segmento_id = data.get('segmento_id')
         descricao = data.get('descricao', '')
         is_ativo = data.get('is_ativo', True)
 
