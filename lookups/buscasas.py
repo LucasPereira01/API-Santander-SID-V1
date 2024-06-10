@@ -22,12 +22,14 @@ def write_file(s):
 
 # Função para obter o token
 def get_token():
+    
+    basic_token = 'Basic c2FzLmVjOg==' #padrao
     url = "https://server.demo.sas.com/SASLogon/oauth/token"
     payload = 'username=sasdemo&password=Orion123&grant_type=password'
     headers = {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': 'Basic c2FzLmVjOg==',
-        'Cookie': 'sas-ingress-nginx=9e9148b7e9ef1d961e906ed16b3ad80e|999d8d05a8ecead1a5884cb51c3c5d02; JSESSIONID=468CB9D45ED2DDDA01AC50C37F5C9ADA'
+         'Authorization': basic_token,
+         "Content-Type": "application/x-www-form-urlencoded",
+         "Accept": "application/json"
     }
     response = requests.post(url, headers=headers, data=payload, verify=False)
     if response.status_code == 200:
@@ -44,17 +46,17 @@ def get_token_and_write():
 
 
 # Função para configurar o SAS
-def conf_sas(token):
-    url = "https://server.demo.sas.com/catalog/instances"
-    headers = {
-        'Authorization': f'Bearer {token}',
-        'Cookie': 'sas-ingress-nginx=18f200a6fe34881de5eda1d98bcfcc5e|c71550a7073ca099de18546200bef179'
-    }
-    response = requests.get(url, headers=headers, verify=False)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        return jsonify({"error": response.text}), response.status_code
+# def conf_sas(token):
+#     url = "https://server.demo.sas.com/catalog/instances"
+#     headers = {
+#         'Authorization': f'Bearer {token}',
+#         'Cookie': 'sas-ingress-nginx=18f200a6fe34881de5eda1d98bcfcc5e|c71550a7073ca099de18546200bef179'
+#     }
+#     response = requests.get(url, headers=headers, verify=False)
+#     if response.status_code == 200:
+#         return response.json()
+#     else:
+#         return jsonify({"error": response.text}), response.status_code
 
 
 # Função para obter os domínios e retornar id e nome
