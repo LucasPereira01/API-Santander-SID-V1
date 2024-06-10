@@ -87,9 +87,17 @@ def update_entries_route():
     return update_entries(token)
 
 ###Parametros no banco
-@app.route('/api/v1/parametros/<string:id_politica>', methods=['POST'])
-def create_parametro_base(id_politica):
-    return create_parametro(id_politica)
+@app.route('/api/v1/parametros', methods=['POST'])
+def create_parametro_base():
+    return create_parametro()
+
+@app.route('/api/v1/parametros/<string:id_parametros>/variaveis', methods=['POST'])
+def create_variaveis_base(id_parametros):
+    return create_variaveis(id_parametros)
+
+@app.route('/api/v1/parametros/<string:id_parametros>/dados', methods=['POST'])
+def create_dados_base(id_parametros):
+    return create_dados(id_parametros)
 
 ### Folders
 @app.route('/api/v1/front/segmentos', methods=['POST'])
@@ -159,5 +167,5 @@ def get_index():
 if __name__ == "__main__":
     app.run(app.run(port=8080), debug=True, ssl_context='adhoc')
     #app.run(debug=True, ssl_context='adhoc')
-    #app.run(port=8080, debug=True, ssl_context='adhoc') usar com https no postaman
+    #app.run(port=8080, debug=True, ssl_context='adhoc') #usar com https no postaman
 

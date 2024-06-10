@@ -49,7 +49,7 @@ def login():
 
                     try:
                         url3 = url_path_sid + "/identities/users/" + body.get("username") + "/memberships"
-                        query3 = "cirrus" # "santander"
+                        query3 = "santander" # "santander"
                         filter3 = f"?filter=and(eq(providerId,'local'),or(contains($primary,name,'{query3}'),contains($primary,id,'{query3}')))&start=0&limit=100&sortBy=name%3Aascending"
                         
                         response3 = requests.get(
@@ -63,7 +63,9 @@ def login():
                             ids = []
 
                             for item in items:
-                                ids.append(item['id'])
+                                print(item)
+                                ids.append(item['name'])
+
                                 
                             return {
                                 "user_id": res2['id'],
