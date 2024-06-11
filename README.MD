@@ -38,18 +38,3 @@ pip install -r requirements.txt
 ```bash
 pip freeze > requirements.txt
 ```
-### minificar o codigo
-```bash
-pip install pyarmor
-pyarmor pack -x  "--exclude dist" -e "--onefile"  main.py
-```
-
-### Criar o Executavel
-```bash
-pyinstaller --onefile --strip --noconfirm main.min.py
-```
-### Executar 
-```bash
-cd dist ./main.min
-```
-

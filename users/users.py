@@ -64,8 +64,7 @@ def login():
 
                             for item in items:
                                 print(item)
-                                ids.append(item['name'])
-
+                                ids.append(item['id'])
                                 
                             return {
                                 "user_id": res2['id'],

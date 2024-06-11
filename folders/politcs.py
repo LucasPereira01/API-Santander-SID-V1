@@ -68,7 +68,8 @@ def criar_politica(token):
         
 
         sas_parent_uri_cluster = cluster[5]
-        
+        if 'Authorization' in request.headers:
+            token = request.headers.get('Authorization').split('Bearer ')[1]
 
         headers = {
             "Content-Type": "application/json",

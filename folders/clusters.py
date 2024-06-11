@@ -167,7 +167,8 @@ def criar_cluster(token):
         print('Path segmento:')
         print(sas_parent_uri_seg)
 
-
+        if 'Authorization' in request.headers:
+            token = request.headers.get('Authorization').split('Bearer ')[1]
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}",

@@ -86,11 +86,25 @@ def create_domains_entries_route(id_politica):
 def update_entries_route():
     return update_entries(token)
 
-###Parametros no banco
+## Parametros no banco
 @app.route('/api/v1/parametros', methods=['POST'])
 def create_parametro_base():
     return create_parametro()
 
+@app.route('/api/v1/parametros', methods=['GET'])
+def busca_all_parametro_base():
+    return get_all_parametro()
+
+@app.route('/api/v1/parametros/<string:parametro_id>', methods=['GET'])
+def busca_parametro_id_base(parametro_id):
+    return get_parametro_by_id(parametro_id)
+
+@app.route('/api/v1/parametros/<string:parametro_id>', methods=['GET'])
+def alter_parametro_id_base(parametro_id):
+    return update_parametro(parametro_id)
+
+
+## Variavel no banco
 @app.route('/api/v1/parametros/<string:id_parametros>/variaveis', methods=['POST'])
 def create_variaveis_base(id_parametros):
     return create_variaveis(id_parametros)

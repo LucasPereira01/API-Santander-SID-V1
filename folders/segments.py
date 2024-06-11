@@ -18,6 +18,8 @@ app = Flask(__name__)
 
 def create_segmento(token,global_uri):
     data = request.get_json()
+    # Verifica se o cabeçalho Authorization está presente na requisição
+    
 
     # Verificar se 'is_ativo' está presente no JSON e é um valor booleano
     if "is_ativo" not in data or not isinstance(data["is_ativo"], bool):
@@ -46,7 +48,8 @@ def create_segmento(token,global_uri):
 
     conn = get_db_connection()
     cur = conn.cursor()
-
+    if 'Authorization' in request.headers:
+        token = request.headers.get('Authorization').split('Bearer ')[1]
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {token}",
@@ -174,7 +177,6 @@ def list_segmentos():
             }
             for row in segmentos
         ]
-        print(segmentos)
         return result
     except Exception as e:
         print(f"Erro ao listar segmentos: {e}")
