@@ -227,6 +227,74 @@ def criar_cluster(token):
             conn.close()
 
 
+
+
+
+def criar_cluster_data_base():
+        data = request.get_json()
+        nome = data.get('nome')
+        segmento_id = data.get('segmento_id')
+        descricao = data.get('descricao', '')
+        is_ativo = data.get('is_ativo', True)
+
+            # Verificar se 'is_ativo' está presente no JSON e é um valor booleano
+        if "is_ativo" not in data or not isinstance(data["is_ativo"], bool):
+            return jsonify({"error": "'is_ativo' é obrigatório e deve ser um booleano","campos_error":["is_ativo"]}), 400
+
+        if not nome:
+            return jsonify({"error": "'nome' é obrigatório","campos_error":["nome"]}), 400
+    
+        elif not descricao:
+            return jsonify({"error": "'descricao' é obrigatório ","campos_error":["descricao"]}), 400
+        # Verificar se 'nome' e 'descricao' estão presentes e são válidos
+
+        elif not segmento_id:
+            return jsonify({"error": "'segmento_id' é obrigatório ","campos_error":["segmento_id"]}), 400
+        # Verificar se 'nome' e 'descricao' estão presentes e são válidos
+
+        elif len(descricao) > 350:
+            return jsonify({"error": "Descrição deve ter no máximo 350 caracteres","campos_error":["descricao"]}), 400
+
+        
+        # Validação do campo 'nome' usando expressão regular
+        name_regex = re.compile(r"^[A-Za-z0-9_]+$")
+        if not name_regex.match(nome):
+             return jsonify({"error": "Nome deve conter apenas letras, números ou underscores","campos_error":["nome"]}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM clusters WHERE nome = %s AND segmento_id = %s",(nome, segmento_id))
+        existing_cluster = cur.fetchone()
+
+        if existing_cluster:
+            return jsonify({"error":"Nome do cluster ja existe para este segmento","campos_error":["nome"]}),400
+        
+        cur.execute("SELECT * FROM segmento WHERE id = %s",(segmento_id,))
+        segmento = cur.fetchone()
+        if not segmento:
+            return jsonify({"error":"Segmento nao encontrado"}),400
+    
+        cluster_id = str(uuid.uuid4())
+        try:
+            
+            # Insere os dados do cluster no banco de dados
+            cur.execute("""
+                INSERT INTO clusters (id, nome, descricao, is_ativo,segmento_id) 
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+            """, (cluster_id, nome, descricao, is_ativo, segmento_id))
+            cluster_id = cur.fetchone()[0]
+
+            conn.commit()
+            return jsonify({"message": "Cluster Criado com Sucesso", "id": cluster_id}), 201
+        except Exception as e:
+            conn.rollback()
+            return jsonify({"error": str(e)}), 500
+        finally:
+            cur.close()
+            conn.close()
+
+
 def edit_cluster(cluster_id):
     data = request.get_json()
     descricao = data.get('descricao', '')

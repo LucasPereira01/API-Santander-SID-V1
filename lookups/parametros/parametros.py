@@ -17,8 +17,9 @@ def create_parametro():
     is_vigente = body.get("is_vigente")
     sas_user_id = body.get("sas_user_id")
     justificativa = body.get("justificativa")
+    status_code = body.get("status_code")
     parametro_id = str(uuid.uuid4())
-    status_code = "001"
+    
 
     # Validando os campos
     if not isinstance(is_vigente, bool):
@@ -99,13 +100,15 @@ def get_all_parametro():
             SELECT p.id, p.nome, p.descricao, p.modo, p.data_hora_vigencia, p.versao, p.is_vigente, 
                    p.sas_domain_id, p.sas_content_id, p.created_at, p.updated_at, p.deleted_at, 
                    p.status_code, p.parametro_parent_id, p.politica_id, p.sas_user_id,
-                   po.id AS politica_id, po.nome AS politica_nome, po.descricao AS politica_descricao, po.is_ativo AS politica_ativo,
-                   c.id AS cluster_id, c.nome AS cluster_nome, c.descricao AS cluster_descricao, c.is_ativo AS cluster_ativo,
-                   s.id AS segmento_id, s.nome AS segmento_nome, s.descricao AS segmento_descricao, s.is_ativo AS segmento_ativo
+                   po.*,
+                   c.*, 
+                   s.*,
+                   d.informacao, d.sas_key, d.sas_value
             FROM public.parametro p
             JOIN politica po ON p.politica_id = po.id
             JOIN clusters c ON po.cluster_id = c.id
             JOIN segmento s ON c.segmento_id = s.id
+            LEFT JOIN dado d ON p.id = d.parametro_id
             """
         )
         parametros = cur.fetchall()
@@ -133,18 +136,37 @@ def get_all_parametro():
                     "nome": row[17],
                     "descricao": row[18],
                     "is_ativo": row[19],
+                    "sas_folder_id": row[20],
+                    "sas_parent_uri": row[21],
+                    "created_at": row[22],
+                    "updated_at": row[23],
+                    "cluster_id": row[24],
                     "cluster": {
-                        "id": row[20],
-                        "nome": row[21],
-                        "descricao": row[22],
-                        "is_ativo": row[23],
+                        "id": row[25],
+                        "nome": row[26],
+                        "descricao": row[27],
+                        "is_ativo": row[28],
+                        "sas_folder_id": row[29],
+                        "sas_parent_uri": row[30],
+                        "created_at": row[31],
+                        "updated_at": row[32],
+                        "segmento_id": row[33],
                         "segmento": {
-                            "id": row[24],
-                            "nome": row[25],
-                            "descricao": row[26],
-                            "segmento_ativo": row[27]
+                            "id": row[34],
+                            "nome": row[35],
+                            "descricao": row[36],
+                            "is_ativo": row[37],
+                            "sas_folder_id": row[38],
+                            "sas_parent_uri": row[39],
+                            "created_at": row[40],
+                            "updated_at": row[41]
                         }
                     }
+                },
+                "dado": {
+                    "informacao": row[42],
+                    "sas_key": row[43],
+                    "sas_value": row[44]
                 }
             }
             for row in parametros
@@ -157,6 +179,8 @@ def get_all_parametro():
     finally:
         cur.close()
         conn.close()
+
+
 
 def get_parametro_by_id(parametro_id):
     conn = get_db_connection()

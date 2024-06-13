@@ -133,6 +133,75 @@ def criar_politica(token):
 
 
 
+def criar_politica_data_base():
+        # Obtém os dados da requisição JSON
+        data = request.get_json()
+        
+        # Extrai os dados do JSON
+        nome = data.get('nome')
+        cluster_id = data.get('cluster_id')
+        descricao = data.get('descricao', '')
+        is_ativo = data.get('is_ativo', True)
+
+                # Verificar se 'is_ativo' está presente no JSON e é um valor booleano
+        if "is_ativo" not in data or not isinstance(data["is_ativo"], bool):
+                return jsonify({"error": "'is_ativo' é obrigatório e deve ser um booleano","campos_error":["is_ativo"]}), 400
+
+        if not nome:
+                return jsonify({"error": "'nome' é obrigatório","campos_error":["nome"]}), 400
+        
+        elif not descricao:
+                return jsonify({"error": "'descricao' é obrigatório ","campos_error":["descricao"]}), 400
+            # Verificar se 'nome' e 'descricao' estão presentes e são válidos
+
+        elif not cluster_id:
+                return jsonify({"error": "'cluster_id' é obrigatório ","campos_error":["cluster_id"]}), 400
+            # Verificar se 'nome' e 'descricao' estão presentes e são válidos
+
+        elif len(descricao) > 350:
+                return jsonify({"error": "Descrição deve ter no máximo 350 caracteres","campos_error":["descricao"]}), 400
+
+            
+            # Validação do campo 'nome' usando expressão regular
+        name_regex = re.compile(r"^[A-Za-z0-9_]+$")
+        if not name_regex.match(nome):
+            return jsonify({"error": "Nome deve conter apenas letras, números ou underscores","campos_error":["nome"]}), 400
+
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT * FROM politica WHERE nome = %s AND cluster_id = %s",(nome,cluster_id))
+        existing_cluster = cur.fetchone()
+
+        if existing_cluster:
+            return jsonify({"error":"Nome da Politica ja existe para este Cluster","campos_error":["nome"]}),400
+        
+        cur.execute("SELECT * FROM clusters WHERE id = %s",(cluster_id,))
+        cluster = cur.fetchone()
+        if not cluster:
+            return jsonify({"error":"Cluster nao encontrado"}),400
+        
+        politica_id = str(uuid.uuid4())
+
+        try:
+            # Insere os dados do cluster no banco de dados
+            cur.execute("""
+                INSERT INTO politica (id, nome, descricao, is_ativo, cluster_id) 
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+            """, (politica_id, nome, descricao, is_ativo, cluster_id))
+            politica_id = cur.fetchone()[0]
+
+            conn.commit()
+            return jsonify({"message": "Politica Criada com Sucesso", "id": politica_id}), 201
+        except Exception as e:
+            conn.rollback()
+            return jsonify({"error": str(e)}), 500
+        finally:
+            if conn is not None:
+                conn.close()
+
 def edit_politica(politica_id):
     data = request.get_json()
     descricao = data.get('descricao', '')

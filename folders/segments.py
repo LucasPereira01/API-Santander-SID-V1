@@ -73,7 +73,7 @@ def create_segmento(token,global_uri):
             response = requests.post(url, json=payload, headers=headers, verify=False)
 
         if response.status_code != 201:
-            cur.execute("SELECT * FROM segmento WHERE nome = %s",(nome,))
+            cur.execute("SELECT * FROM segmento WHERE nome = %s",(nome,segmento_id))
             existing_cluster = cur.fetchone()
             if existing_cluster: 
                 return jsonify({"error": "O segmento ja existe","campos_error":["nome"]}), 400
@@ -99,6 +99,63 @@ def create_segmento(token,global_uri):
             (segmento_id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri)
         )
         conn.commit()
+            
+        return jsonify({"message": "Segmento Criado com Sucesso", "id": segmento_id}), 201
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+
+def create_segmento_data_base():
+    data = request.get_json()
+    
+    # Verificar se 'is_ativo' está presente no JSON e é um valor booleano
+    if "is_ativo" not in data or not isinstance(data["is_ativo"], bool):
+        return jsonify({"error": "'is_ativo' é obrigatório e deve ser um booleano","campos_error":["is_ativo"]}), 400
+
+    nome = data.get('nome')
+    descricao = data.get('descricao', '')
+
+    if not nome:
+        return jsonify({"error": "'nome' é obrigatório","campos_error":["nome"]}), 400
+    
+    elif not descricao:
+        return jsonify({"error": "'descricao' é obrigatório ","campos_error":["descricao"]}), 400
+
+    # Verificar se 'nome' e 'descricao' estão presentes e são válidos
+    elif len(descricao) > 350:
+        return jsonify({"error": "Descrição deve ter no máximo 350 caracteres","campos_error":["descricao"]}), 400
+
+    # Validação do campo 'nome' usando expressão regular
+    name_regex = re.compile(r"^[A-Za-z0-9_]+$")
+    if not name_regex.match(nome):
+        return jsonify({"error": "Nome deve conter apenas letras, números ou underscores","campos_error":["nome"]}), 400
+
+    # Pegar o valor de 'is_ativo' do JSON
+    is_ativo = data.get('is_ativo', True)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    segmento_id = str(uuid.uuid4())
+    try:
+        cur.execute("SELECT * FROM segmento WHERE nome = %s",(nome,))
+        existing_cluster = cur.fetchone()
+        if existing_cluster: 
+            return jsonify({"error": "O segmento ja existe","campos_error":["nome"]}), 400
+        
+        cur.execute(
+            """
+            INSERT INTO segmento (id, nome, descricao, is_ativo)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (segmento_id, nome, descricao, is_ativo)
+        )
+        conn.commit()
+
             
         return jsonify({"message": "Segmento Criado com Sucesso", "id": segmento_id}), 201
     except Exception as e:

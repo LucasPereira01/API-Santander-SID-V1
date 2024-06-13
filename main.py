@@ -1,4 +1,3 @@
-
 from flask import Flask, make_response, jsonify
 import schedule
 import threading
@@ -10,6 +9,7 @@ from lookups.parametros.parametros import *
 from folders.segments import *
 from folders.clusters import *
 from folders.politcs import *
+from folders.create_lokup_sid import verificar_periodicamente
 
 from users.users import *
 
@@ -38,9 +38,37 @@ if not token:
 
 
 # Iniciamos o aplicativo Flask
-app = Flask(__name__,template_folder="./templates")
-app.config['DEBUG'] = True
+app = Flask(__name__, template_folder="./templates")
 CORS(app)
+
+
+# Função para execução do loop de verificação em uma thread
+def run_verification(token):
+    while True:
+        print("Executando verificação a cada 5 minutos...")
+        verificar_periodicamente(token)
+        time.sleep(300)  # Espera 5 minutos
+
+
+# Iniciar as threads para execução do agendamento e da verificação
+def run_threads(token):
+    verification_thread = threading.Thread(target=run_verification, args=(token,))
+    verification_thread.start()
+
+# Função para inicializar tudo
+def initialize():
+    # Verifica se existe um token armazenado
+    token = read_file()
+    if not token:
+        get_token_and_write()  # Se não existir, obtém um novo token e armazena
+
+    # Inicia as threads
+    run_threads(token)
+
+# Inicializa tudo
+initialize()
+
+
 
 
 # Definimos as rotas da API
@@ -118,6 +146,10 @@ def create_dados_base(id_parametros):
 def create_segments():
     return create_segmento(token, global_uri)
 
+@app.route('/api/v1/front/segmentos_base', methods=['POST'])
+def create_segments_data_base():
+    return create_segmento_data_base()
+
 
 @app.route('/api/v1/front/segmentos/<string:segmento_id>', methods=['PUT'])
 def edit_segmentos(segmento_id):
@@ -138,6 +170,9 @@ def list_id_segmentos(segmento_id):
 def create_cluster():
     return criar_cluster(token)
 
+@app.route('/api/v1/front/clusters_base', methods=['POST'])
+def create_cluster_data_base():
+    return criar_cluster_data_base()
 
 @app.route('/api/v1/front/clusters', methods=['GET'])
 def get_all_cluster():
@@ -147,8 +182,6 @@ def get_all_cluster():
 def list_id_cluster(cluster_id):
     return buscar_cluster_id(cluster_id)
     
-
-
 @app.route('/api/v1/front/clusters/<string:cluster_id>', methods=['PUT'])
 def alter_cluster(cluster_id):
     return edit_cluster(cluster_id)
@@ -157,6 +190,10 @@ def alter_cluster(cluster_id):
 @app.route('/api/v1/front/politicas', methods=['POST'])
 def create_politica():
     return criar_politica(token)
+
+@app.route('/api/v1/front/politicas_base', methods=['POST'])
+def create_politica_data_base():
+    return criar_politica_data_base()
 
 @app.route('/api/v1/front/politicas/<string:politica_id>', methods=['GET'])
 def lit_id_politica(politica_id):
@@ -178,8 +215,17 @@ def get_index():
     return make_response(jsonify({"sucesso":"Bem vindo"}))
 
 
+
 if __name__ == "__main__":
-    app.run(app.run(port=8080), debug=True, ssl_context='adhoc')
-    #app.run(debug=True, ssl_context='adhoc')
+    app.run(debug=False, ssl_context='adhoc',port=8080)
+
+    #app.run(app.run(port=8080), debug=False, ssl_context='adhoc')
     #app.run(port=8080, debug=True, ssl_context='adhoc') #usar com https no postaman
+
+# Função para execução do loop de verificação em uma thread
+def run_verification():
+    while True:
+        print("Executando verificação a cada 5 minutos...")
+        # Coloque sua lógica de verificação aqui
+        time.sleep(300)  # Espera 5 minutos
 
