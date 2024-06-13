@@ -2,6 +2,17 @@ from flask import Flask, make_response, jsonify, request
 import requests
 import schedule
 from db import get_db_connection
+from dotenv import load_dotenv
+import os
+
+# Carrega as variáveis de ambiente do arquivo .env
+load_dotenv()
+
+# Acesso à variável de ambiente
+url_path_sid = os.getenv("URL_PATH_SID")
+url_path_sid_analytics = os.getenv("URL_PATH_ANALYTICS_SID")
+user_name_sid = os.getenv("USER_NAME_SID")
+password_sid = os.getenv("PASSWORD_SID")
 
 
 # Função para ler o token de um arquivo
@@ -22,8 +33,6 @@ def write_file(s):
 
 # Função para obter o token
 def get_token():
-    
-    basic_token = 'Basic c2FzLmVjOg==' #padrao
     url = "https://server.demo.sas.com/SASLogon/oauth/token"
     payload = 'username=sasdemo&password=Orion123&grant_type=password'
     headers = {
@@ -46,23 +55,23 @@ def get_token_and_write():
 
 
 # Função para configurar o SAS
-# def conf_sas(token):
-#     url = "https://server.demo.sas.com/catalog/instances"
-#     headers = {
-#         'Authorization': f'Bearer {token}',
-#         'Cookie': 'sas-ingress-nginx=18f200a6fe34881de5eda1d98bcfcc5e|c71550a7073ca099de18546200bef179'
-#     }
-#     response = requests.get(url, headers=headers, verify=False)
-#     if response.status_code == 200:
-#         return response.json()
-#     else:
-#         return jsonify({"error": response.text}), response.status_code
+def conf_sas(token):
+    url = "https://server.demo.sas.com/catalog/instances"
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Cookie': 'sas-ingress-nginx=18f200a6fe34881de5eda1d98bcfcc5e|c71550a7073ca099de18546200bef179'
+    }
+    response = requests.get(url, headers=headers, verify=False)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return jsonify({"error": response.text}), response.status_code
 
 
 # Função para obter os domínios e retornar id e nome
 def get_domains(token):
     try:
-        url = "https://server.demo.sas.com/referenceData/domains"
+        url =f"{url_path_sid}/referenceData/domains"
         headers = {
             'Authorization': f'Bearer {token}',
             'Accept': 'application/vnd.sas.collection+json, application/json, application/vnd.sas.error+json'
@@ -81,8 +90,6 @@ def get_domains(token):
                     "modifiedBy": item["modifiedBy"]
                 }
                 domain_info.append(domain_data)
-                # Printando informações de debug para cada domínio
-                print(f"ID: {domain_data['id']}, Name: {domain_data['name']}")
             return domain_info
         else:
             return jsonify({"error": response.text}), response.status_code
@@ -106,7 +113,7 @@ def get_content(token, name=None):
         if domain:
             domainId = domain["id"]
 
-            url = f"https://server.demo.sas.com/referenceData/domains/{domainId}/contents/"
+            url = f"{url_path_sid}/referenceData/domains/{domainId}/contents/"
 
             authorization = f'Bearer {token}'
             headers = {
@@ -170,7 +177,7 @@ def get_current_contents(token):
             domainId = domain["id"]
            
             # Agora que temos o ID do domínio, podemos usar para fazer a solicitação de conteúdo
-            url = f"https://server.demo.sas.com/referenceData/domains/{domainId}/currentContents/"
+            url = f"{url_path_sid}/referenceData/domains/{domainId}/currentContents/"
            
             # Autorização e headers
             authorization = f'Bearer {token}'
@@ -213,7 +220,7 @@ def get_current_contents(token):
 def create_domains(token):
     domains = get_domains(token)
     body = request.json
-    new_domain_name = body.get("name")
+    name = body.get("name")
     id_politica = body.get("id_politica")
 
     conn = get_db_connection()
@@ -229,14 +236,14 @@ def create_domains(token):
     
     # Verifica se o nome do novo domínio já existe
     for domain in domains:
-        if domain["name"] == new_domain_name:
-            return jsonify({"error": f"O domínio '{new_domain_name}' já existe."}), 400
+        if domain["name"] == name:
+            return jsonify({"error": f"O domínio '{name}' já existe."}), 400
     
-    url = f"https://server.demo.sas.com/referenceData/domains?parentFolderUri={sas_parent_folder_uri_cluster}"
+    url = f"{url_path_sid}/referenceData/domains?parentFolderUri={sas_parent_folder_uri_cluster}"
 
     # Criação do payload com base nos dados recebidos na solicitação
     payload = {
-        "name": new_domain_name,
+        "name": name,
         "description": body.get("description"),
         "domainType": "lookup",
         "checkout":True
@@ -290,7 +297,7 @@ def create_domains_entries(token):
         return jsonify({"error": f"O domínio '{domain_name}' não foi encontrado."}), 404
     
     # Constrói a URL com o ID do domínio para criar as entradas
-    url = f"https://server.demo.sas.com/referenceData/domains/{domain_id}/contents"
+    url = f"{url_path_sid}/referenceData/domains/{domain_id}/contents"
     
     # Payload com os dados das entradas
     payload = {
@@ -356,21 +363,20 @@ def update_entries(token):
                 # Extrai o ID da URI
                 uri_id = extract_id_from_uri(uri)
                 matching_uris.append(uri)
-        
+        print(matching_uris)
         # Verifica se há URIs correspondentes
         if not matching_uris:
             return {"error": "Nenhuma URI correspondente encontrada para o domínio."}, 404
         
         # Se houver mais de uma URI correspondente, retorne um erro, pois a correspondência é ambígua
-        """ if len(matching_uris) > 1:
-            return {"error": "Múltiplas URIs correspondentes encontradas para o domínio. A correspondência é ambígua."}, 500 """
+        if len(matching_uris) >= 2:
+            matched_uri = matching_uris[2]
+        else:
+            return {"error": "Não há URI correspondente suficiente para atualização"}, 404
         
-        # Obtém a URI correspondente
-        matched_uri = matching_uris[1]
-        print(matched_uri)
         
         # Constrói a URL com base na URI correspondente
-        url = f"https://server.demo.sas.com{matched_uri}/entries"
+        url = f"{url_path_sid}{matched_uri}/entries"
         
         # Payload com as operações de atualização
         payload = request.json.get("data")
@@ -414,100 +420,152 @@ def update_entries(token):
     except Exception as e:
         # Se houver um erro, retorna uma mensagem de erro
         return {"error": str(e)}, 500
-    
 
 
+def create_parametro( id_politica):
+    body = request.json
+    name = body.get("name")
+    descricao = body.get("description")
+    modo = body.get("modo")
+    data_hora_vigencia = body.get("data_hora_vigencia")
+    versao = body.get("versao")
+    status_code = body.get("status_code")
+    is_vigente = body.get("is_vigente")
+    sas_user_id = body.get("sas_user_id")
 
+    conn = get_db_connection()
+    cur = conn.cursor()
 
-def create_domains_and_entries(token):
+    try:
+        cur.execute("SELECT * FROM politica WHERE id = %s", (id_politica,))
+        politica = cur.fetchone()
+        if not politica:
+            return jsonify({"error": "Política não encontrada"}), 400
+
+        cur.execute(
+                    """
+                        INSERT INTO parametro (nome, descricao, modo, data_hora_vigencia, versao, is_vigente, status_code, politica_id, sas_user_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (name, descricao,modo,data_hora_vigencia,versao,is_vigente, status_code, id_politica, sas_user_id)
+                    )
+        conn.commit()
+        return jsonify({"error": f"Nao foi possivel Criar o parametro"}), 400
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        cur.close()
+        conn.close()
+
+def create_domains_and_entries(token, id_politica):
     domains = get_domains(token)
     body = request.json
-    new_domain_name = body.get("name")
-    id_politica = body.get("id_politica")
+    name = body.get("name")
+    descricao = body.get("description")
+    modo = body.get("modo")
+    data_hora_vigencia = body.get("data_hora_vigencia")
+    versao = body.get("versao")
+    status_code = body.get("status_code")
+    is_vigente = body.get("is_vigente")
     entries = body.get("entries")
 
     conn = get_db_connection()
     cur = conn.cursor()
 
-    cur.execute("SELECT * FROM politica WHERE id = %s",(id_politica,))
-    politica = cur.fetchone()
-    if not politica:
-        return jsonify({"error":"Politica nao encontrado"}),400
-        
+    try:
+        cur.execute("SELECT * FROM politica WHERE id = %s", (id_politica,))
+        politica = cur.fetchone()
+        if not politica:
+            return jsonify({"error": "Política não encontrada"}), 400
 
-    sas_parent_folder_uri_cluster = politica[5]
-    
-    # Verifica se o nome do novo domínio já existe
-    for domain in domains:
-        if domain["name"] == new_domain_name:
-            return jsonify({"error": f"O domínio '{new_domain_name}' já existe."}), 400
-    url = f"https://server.demo.sas.com/referenceData/domains?parentFolderUri={sas_parent_folder_uri_cluster}"
+        sas_parent_folder_uri_cluster = politica[5]
 
-    # Criação do payload com base nos dados recebidos na solicitação
-    payload = {
-        "name": new_domain_name,
-        "description": body.get("description"),
-        "domainType": "lookup",
-        "checkout":body.get("checkout")
-    }
+        for domain in domains:
+            if domain["name"] == name:
+                return jsonify({"error": f"O domínio '{name}' já existe."}), 400
 
-    # Criação do cabeçalho de autorização
-    authorization = f'Bearer {token}'
-    headers = {
-        "Content-Type": "application/vnd.sas.data.reference.domain+json",
-        "Authorization": authorization,
-        "Accept": "application/vnd.sas.data.reference.domain+json, application/vnd.sas.data.reference.value.list+json, application/json, application/vnd.sas.error+json"
-    }
+        url = f"{url_path_sid}/referenceData/domains?parentFolderUri={sas_parent_folder_uri_cluster}"
 
-    # Envio da solicitação POST para criar o domínio
-    response = requests.post(url, headers=headers, json=payload, verify=False)
-    if response.status_code == 201:
-        # Extrai informações importantes do JSON de resposta
-        domain_info = response.json()
-        relevant_info = {
-            "name": domain_info["name"],
-            "description": domain_info["description"],
-            "domainType": domain_info["domainType"],
-            "id": domain_info["id"],
-            "creationTimeStamp": domain_info["creationTimeStamp"],
-            "modifiedBy": domain_info["modifiedBy"],
-            "modifiedTimeStamp": domain_info["modifiedTimeStamp"]
+        payload = {
+            "name": name,
+            "description": body.get("description"),
+            "domainType": "lookup",
+            "checkout": body.get("checkout")
         }
-        
-        if entries :
-                    # Constrói a URL com o ID do domínio para criar as entradas
-            url_entries = f"https://server.demo.sas.com/referenceData/domains/{domain_info["id"]}/contents"
-            
-            # Payload com os dados das entradas
-            payload = {
-                "label": body.get("name"),  # Use o nome do domínio como label
-                "status": "developing",
-                "entries": body.get("entries")
+
+        authorization = f'Bearer {token}'
+        headers = {
+            "Content-Type": "application/vnd.sas.data.reference.domain+json",
+            "Authorization": authorization,
+            "Accept": "application/vnd.sas.data.reference.domain+json, application/vnd.sas.data.reference.value.list+json, application/json, application/vnd.sas.error+json"
+        }
+
+        response = requests.post(url, headers=headers, json=payload, verify=False)
+        if response.status_code == 201:
+            domain_info = response.json()
+            relevant_info = {
+                "name": domain_info["name"],
+                "description": domain_info["description"],
+                "domainType": domain_info["domainType"],
+                "id": domain_info["id"],
+                "creationTimeStamp": domain_info["creationTimeStamp"],
+                "modifiedBy": domain_info["modifiedBy"],
+                "modifiedTimeStamp": domain_info["modifiedTimeStamp"]
             }
 
-            # Cabeçalhos e autorização
-            authorization = f'Bearer {token}'
-            headers = {
-                "Content-Type": "application/vnd.sas.data.reference.domain.content.full+json",
-                "Authorization": authorization,
-                "Accept": "application/vnd.sas.data.reference.domain.content.full+json, application/vnd.sas.data.reference.value.list.content.full+json, application/json, application/vnd.sas.error+json"
-            }
-            
-            # Solicitação POST para criar as entradas
-            response_entries = requests.post(url_entries, headers=headers, json=payload, verify=False)
-            if response_entries.status_code == 201:
-                entries_info = response_entries.json() 
-                return jsonify({ 
-                    "domain_created": relevant_info,
-                    "entries_created": entries_info
+            if entries:
+                url_entries = f"https://server.demo.sas.com/referenceData/domains/{domain_info['id']}/contents"
+
+                payload = {
+                    "label": body.get("name"),
+                    "status": "developing",
+                    "entries": body.get("entries")
+                }
+
+                headers = {
+                    "Content-Type": "application/vnd.sas.data.reference.domain.content.full+json",
+                    "Authorization": authorization,
+                    "Accept": "application/vnd.sas.data.reference.domain.content.full+json, application/vnd.sas.data.reference.value.list.content.full+json, application/json, application/vnd.sas.error+json"
+                }
+
+                response_entries = requests.post(url_entries, headers=headers, json=payload, verify=False)
+                if response_entries.status_code == 201:
+                    entries_info = response_entries.json()
+
+                    cur.execute(
+                        """
+                        INSERT INTO parametro (nome, descricao, modo, data_hora_vigencia, versao, is_vigente, sas_domain_id, sas_content_id, status_code, politica_id, sas_user_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (name, descricao,modo,data_hora_vigencia,versao,True, relevant_info["id"], entries_info["id"], status_code, id_politica, relevant_info["modifiedBy"])
+                    )
+                    conn.commit()
+
+                    return jsonify({
+                        "domain_created": relevant_info,
+                        "entries_created": entries_info
                     }), 201
+
+                else:
+                    return jsonify({"error": response_entries.text}), response_entries.status_code
+
             else:
-                return jsonify({"error": response_entries.text}), response_entries.status_code 
+                return jsonify({"domain_created": relevant_info}), 201
+
         else:
-            return jsonify({"domain_created": relevant_info}), 201
-    else:
-        # Se houver um erro, podemos retornar uma mensagem de erro
-        return jsonify({"error": "Failed to create domain","json":response.json()}), response.status_code
+            return jsonify({"error": "Falha ao criar domínio", "json": response.json()}), response.status_code
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        cur.close()
+        conn.close()
+
 
 
 

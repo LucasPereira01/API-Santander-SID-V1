@@ -4,66 +4,22 @@ from datetime import datetime
 from db import get_db_connection
 import requests
 import re
+from dotenv import load_dotenv
+import os
+
+# Carrega as variáveis de ambiente do arquivo .env
+load_dotenv()
+
+# Acesso à variável de ambiente
+url_path_sid = os.getenv("URL_PATH_SID")
+url_path_sid_analytics = os.getenv("URL_PATH_ANALYTICS_SID")
 
 app = Flask(__name__)
 
-def verify_folder_root_or_create(token):
-    print('Dentro do verify_folder_root')
-    url = "https://server.demo.sas.com/folders/rootFolders"
-    folder_name = "segmentos"  # Mantendo o nome correto da pasta conforme fornecido <----- Pasta raiz do segmento
-
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Accept": "application/vnd.sas.collection+json, application/vnd.sas.summary+json, application/json"
-    }
-
-    print('Antes do request')
-    try:
-        response = requests.get(url, headers=headers, verify=False)
-        print('Depois do request')
-        if response.status_code == 200:
-            print('Status code 200')
-            folders = response.json()["items"]
-            for folder in folders:
-                if folder["name"] == folder_name:
-                    name = folder["name"]
-                    uri = folder['links'][0]['uri']
-                    print("URI:", uri)
-                    return {"name": name, "uri": uri}
-            print("Pasta não encontrada, criando...")
-
-            create_folder_url = "https://server.demo.sas.com/folders/folders"
-            create_folder_payload = {
-                "name": folder_name,
-                "type": "folder"
-            }
-            create_folder_headers = {
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json"
-            }
-            create_folder_response = requests.post(create_folder_url, json=create_folder_payload, headers=create_folder_headers, verify=False)
-            if create_folder_response.status_code == 201:
-                folder_data = create_folder_response.json()
-                uri = folder_data['links'][0]['uri']
-                print("Pasta criada com sucesso. URI:", uri)
-                return {"name": folder_name, "uri": uri}
-            else:
-                print("Falha ao criar a pasta.")
-                print("Status code:", create_folder_response.status_code)
-                print("Texto da resposta:", create_folder_response.text)
-                raise Exception("Falha ao  criar o Folder.")
-        else:
-            print("Falha ao recuperar as pastas.")
-            print("Status code:", response.status_code)
-            print("Texto da resposta:", response.text)
-            raise Exception("Failed to retrieve folders.")
-    except Exception as e:
-        print("Erro durante a solicitação:", e)
-        raise Exception("Falha ao tentar criar o Folders")
-
-
 def create_segmento(token,global_uri):
     data = request.get_json()
+    # Verifica se o cabeçalho Authorization está presente na requisição
+    
 
     # Verificar se 'is_ativo' está presente no JSON e é um valor booleano
     if "is_ativo" not in data or not isinstance(data["is_ativo"], bool):
@@ -79,8 +35,8 @@ def create_segmento(token,global_uri):
         return jsonify({"error": "'descricao' é obrigatório ","campos_error":["descricao"]}), 400
 
     # Verificar se 'nome' e 'descricao' estão presentes e são válidos
-    elif len(descricao) > 140:
-        return jsonify({"error": "Descrição deve ter no máximo 140 caracteres","campos_error":["descricao"]}), 400
+    elif len(descricao) > 350:
+        return jsonify({"error": "Descrição deve ter no máximo 350 caracteres","campos_error":["descricao"]}), 400
 
     # Validação do campo 'nome' usando expressão regular
     name_regex = re.compile(r"^[A-Za-z0-9_]+$")
@@ -92,7 +48,8 @@ def create_segmento(token,global_uri):
 
     conn = get_db_connection()
     cur = conn.cursor()
-
+    if 'Authorization' in request.headers:
+        token = request.headers.get('Authorization').split('Bearer ')[1]
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {token}",
@@ -107,7 +64,7 @@ def create_segmento(token,global_uri):
     }
     
     try:
-        url = "https://server.demo.sas.com/folders/folders"
+        url = f"{url_path_sid}/folders/folders"
 
         if global_uri is not None:
             path_segmentos = {"parentFolderUri": global_uri["uri"]}  # Define o path_segmentos se a pasta raiz foi encontrada
@@ -118,7 +75,7 @@ def create_segmento(token,global_uri):
         if response.status_code != 201:
             cur.execute("SELECT * FROM segmento WHERE nome = %s",(nome,))
             existing_cluster = cur.fetchone()
-            if existing_cluster:
+            if existing_cluster: 
                 return jsonify({"error": "O segmento ja existe","campos_error":["nome"]}), 400
             error_type = response.json()
             raise Exception("Falha ao criar o segmento no SAS Intelligence Design ", error_type["message"])
@@ -127,23 +84,23 @@ def create_segmento(token,global_uri):
 
         sas_folder_id = response_data.get("id")
         if 'links' in response_data and len(response_data['links']) > 0:
-            sas_parent_folder_uri = response_data['links'][0]['uri']
+            sas_parent_uri = response_data['links'][0]['uri']
         else:
-            sas_parent_folder_uri = None
+            sas_parent_uri = None
         
-        if not sas_folder_id or not sas_parent_folder_uri:
+        if not sas_folder_id or not sas_parent_uri:
             raise Exception("'parentFolderUri' or 'id' not found in response data")
         
         cur.execute(
             """
-            INSERT INTO segmento (id, nome, descricao, is_ativo, sas_folder_id, sas_parent_folder_uri)
+            INSERT INTO segmento (id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri)
             VALUES (%s, %s, %s, %s, %s, %s)
             """,
-            (segmento_id, nome, descricao, is_ativo, sas_folder_id, sas_parent_folder_uri)
+            (segmento_id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri)
         )
         conn.commit()
             
-        return jsonify({"message": "Segmento Criado com Sucesso", "id": segmento_id, "response": response_data}), 201
+        return jsonify({"message": "Segmento Criado com Sucesso", "id": segmento_id}), 201
     except Exception as e:
         conn.rollback()
         return jsonify({"error": str(e)}), 500
@@ -152,24 +109,23 @@ def create_segmento(token,global_uri):
         conn.close()
 
 
-def edit_segmento():
+def edit_segmento(segmento_id):
     data = request.get_json()
-    segmento_id = data.get('id')
     descricao = data.get('descricao', '')
     is_ativo = data.get('is_ativo', True)
 
      # Verificar se 'is_ativo' está presente no JSON e é um valor booleano
     if "is_ativo" not in data or not isinstance(data["is_ativo"], bool):
-        return jsonify({"error": "'is_ativo' é obrigatório e deve ser um booleano"}), 400
+        return jsonify({"error": "'is_ativo' é obrigatório e deve ser um booleano","campos_error":["is_ativo"]}), 400
 
     if not segmento_id:
-        return jsonify({"error": "segmento_id is required"}), 400
+        return jsonify({"error": "segmento_id é obrigatório","campos_error":["segmento_id"]}), 400
     
     if not descricao:
-        return jsonify({"error": "descricao is required"}), 400
+        return jsonify({"error": "'descricao' é obrigatório","campos_error":["descricao"]}), 400
 
-    if len(descricao) > 140:
-        return jsonify({"error": "Invalid input"}), 400
+    if len(descricao) > 350:
+        return jsonify({"error": "Descrição deve ter no máximo 350 caracteres","campos_error":["descricao"]}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -194,7 +150,7 @@ def edit_segmento():
         )
         conn.commit()
 
-        return jsonify({"message": "Segmento Atualizado com Sucesso"}), 200
+        return jsonify({"message": "Segmento Atualizado com Sucesso","id":segmento_id}), 200
     except Exception as e:
         conn.rollback()
         return jsonify({"error": str(e)}), 500
@@ -208,7 +164,7 @@ def list_segmentos():
     cur = conn.cursor()
 
     try:
-        cur.execute("SELECT id, nome, descricao, is_ativo, sas_folder_id, sas_parent_folder_uri FROM segmento")
+        cur.execute("SELECT id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri FROM segmento")
         segmentos = cur.fetchall()
         result = [
             {
@@ -217,15 +173,41 @@ def list_segmentos():
                 "descricao": row[2],
                 "is_ativo": row[3],
                 "sas_folder_id": row[4],
-                "sas_parent_folder_uri": row[5]
+                "sas_parent_uri": row[5]
             }
             for row in segmentos
         ]
-
         return result
     except Exception as e:
         print(f"Erro ao listar segmentos: {e}")
         return []
+    finally:
+        cur.close()
+        conn.close()
+
+def list_segmentos_id(segmento_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri  FROM segmento WHERE id = %s",(segmento_id,))
+        segmento = cur.fetchone()
+        
+        if segmento:
+            result = {
+                "id": segmento[0],
+                "nome": segmento[1],
+                "descricao": segmento[2],
+                "is_ativo": segmento[3],
+                "sas_folder_id": segmento[4],
+                "sas_parent_uri ": segmento[5]
+            }
+        else:
+           return jsonify({"error": "Segmento não encontrado"}), 500
+
+        return result
+    except Exception as e:
+        print(f"Erro ao listar segmentos: {e}")
+        return None
     finally:
         cur.close()
         conn.close()
