@@ -70,9 +70,16 @@ def busca_all_cluster():
 
 def buscar_cluster_id(cluster_id):
     conn = None
+
+    has_association = False
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+
+        cur.execute("SELECT cluster_id FROM politica WHERE cluster_id = %s", (cluster_id,))
+        association = cur.fetchone()
+        if association:
+            has_association = True
 
         cur.execute("""
             SELECT
@@ -96,6 +103,7 @@ def buscar_cluster_id(cluster_id):
                 "created_at": cluster[6],
                 "updated_at": cluster[7],
                 "segmento_id": cluster[8],
+                "has_association":has_association,
                 "segmento": {
                     "id": cluster[8],
                     "nome": cluster[9],
@@ -117,7 +125,7 @@ def buscar_cluster_id(cluster_id):
 
 
 
-def criar_cluster(token):
+""" def criar_cluster(token):
         data = request.get_json()
         nome = data.get('nome')
         segmento_id = data.get('segmento_id')
@@ -211,10 +219,10 @@ def criar_cluster(token):
             
             # Insere os dados do cluster no banco de dados
             cur.execute("""
-                INSERT INTO clusters (id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri, segmento_id) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-            """, (cluster_id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri, segmento_id))
+                #INSERT INTO clusters (id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri, segmento_id) 
+                #VALUES (%s, %s, %s, %s, %s, %s, %s)
+                #RETURNING id
+""", (cluster_id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri, segmento_id))
             cluster_id = cur.fetchone()[0]
 
             conn.commit()
@@ -224,7 +232,7 @@ def criar_cluster(token):
             return jsonify({"error": str(e)}), 500
         finally:
             cur.close()
-            conn.close()
+            conn.close() """
 
 
 
@@ -298,45 +306,94 @@ def criar_cluster_data_base():
 def edit_cluster(cluster_id):
     data = request.get_json()
     descricao = data.get('descricao', '')
+    nome = data.get('nome')
+    segmento_id = data.get('segmento_id')
     is_ativo = data.get('is_ativo', True)
 
     # Verificar se 'is_ativo' está presente no JSON e é um valor booleano
     if "is_ativo" not in data or not isinstance(data["is_ativo"], bool):
-        return jsonify({"error": "'is_ativo' é obrigatório e deve ser um booleano","campos_error":["is_ativo"]}), 400
+        return jsonify({"error": "'is_ativo' é obrigatório e deve ser um booleano", "campos_error": ["is_ativo"]}), 400
 
     if not cluster_id:
-        return jsonify({"error": "cluster_id é obrigatório","campos_error":["cluster_id"]}), 400
+        return jsonify({"error": "cluster_id é obrigatório", "campos_error": ["cluster_id"]}), 400
     
     if not descricao:
-         return jsonify({"error": "'descricao' é obrigatório ","campos_error":["descricao"]}), 400
+        return jsonify({"error": "'descricao' é obrigatório ", "campos_error": ["descricao"]}), 400
 
     if len(descricao) > 350:
-        return jsonify({"error": "Descrição deve ter no máximo 350 caracteres","campos_error":["descricao"]}), 400
+        return jsonify({"error": "Descrição deve ter no máximo 350 caracteres", "campos_error": ["descricao"]}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
 
     updated_at = datetime.now()
-
+    has_association = False
     try:
-        # verifica se exite o id na table
-        cur.execute("SELECT 1 FROM  clusters WHERE id = %s",(cluster_id,))
+        # verifica se existe o id na tabela
+        cur.execute("SELECT 1 FROM clusters WHERE id = %s", (cluster_id,))
         cluster_existe = cur.fetchone()
 
         if not cluster_existe:
-            return jsonify({"error":"Cluster nao encontrado"}),404
+            return jsonify({"error": "Cluster não encontrado"}), 404
 
-        cur.execute(
+        # Verifica se há alguma associação do cluster com políticas
+        cur.execute("SELECT cluster_id FROM politica WHERE cluster_id = %s", (cluster_id,))
+        association = cur.fetchone()
+        if association:
+            has_association = True
+
+        # Atualiza apenas se houver nome na requisição ou se não houver associação com políticas
+        if has_association and nome:
+            return jsonify({"error": "O 'nome' não pode ser alterado, está associado a uma Política", "campos_error": ["nome"]})
+
+        if nome:
+            query = """
+                UPDATE clusters
+                SET nome = %s, descricao = %s, is_ativo = %s, updated_at = %s ,segmento_id = %s
+                WHERE id = %s
             """
-            UPDATE clusters
-            SET descricao = %s, is_ativo = %s, updated_at = %s
-            WHERE id = %s
-            """,
-            (descricao, is_ativo, updated_at, cluster_id)
-        )
+            params = (nome, descricao, is_ativo, updated_at, segmento_id, cluster_id)
+        else:
+            query = """
+                UPDATE clusters
+                SET descricao = %s, is_ativo = %s, updated_at = %s
+                WHERE id = %s
+            """
+            params = (descricao, is_ativo, updated_at, cluster_id)
+        
+        cur.execute(query, params)
         conn.commit()
 
-        return jsonify({"message": "Cluster Atualizado com Sucesso","id":cluster_id}), 200
+        return jsonify({"message": "Cluster Atualizado com Sucesso", "id": cluster_id}), 200
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+def delete_cluster(cluster_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # Verifica se o cluster existe
+        cur.execute("SELECT 1 FROM clusters WHERE id = %s", (cluster_id,))
+        cluster_existe = cur.fetchone()
+
+        if not cluster_existe:
+            return jsonify({"error": "Cluster não encontrado"}), 404
+
+        # Verifica se o cluster está associado a alguma política
+        cur.execute("SELECT cluster_id FROM politica WHERE cluster_id = %s", (cluster_id,))
+        association = cur.fetchone()
+
+        if association:
+            return jsonify({"error": "Não é possível excluir o cluster pois está associado a uma política", "campos_error": ["cluster_associado"]}), 400
+        else:
+            cur.execute("DELETE FROM clusters WHERE id = %s", (cluster_id,))
+            conn.commit()
+            return jsonify({"message": "Cluster excluído com sucesso"}), 200
     except Exception as e:
         conn.rollback()
         return jsonify({"error": str(e)}), 500

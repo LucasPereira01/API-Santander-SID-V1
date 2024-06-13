@@ -17,7 +17,7 @@ URL_PATH_ANALYTICS_SID = os.getenv("URL_PATH_ANALYTICS_SID")
 
 app = Flask(__name__)
 
-def criar_politica(token):
+""" def criar_politica(token):
         # Obtém os dados da requisição JSON
         data = request.get_json()
         
@@ -116,10 +116,10 @@ def criar_politica(token):
             
             # Insere os dados do cluster no banco de dados
             cur.execute("""
-                INSERT INTO politica (id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri, cluster_id) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-            """, (politica_id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri, cluster_id))
+                #INSERT INTO politica (id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri, cluster_id) 
+                #VALUES (%s, %s, %s, %s, %s, %s, %s)
+                #RETURNING id
+""", (politica_id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri, cluster_id))
             politica_id = cur.fetchone()[0]
 
             conn.commit()
@@ -129,7 +129,7 @@ def criar_politica(token):
             return jsonify({"error": str(e)}), 500
         finally:
             if conn is not None:
-                conn.close()
+                conn.close() """
 
 
 
@@ -304,7 +304,14 @@ def busca_all_politica():
 def list_politica_id(politica_id):
     conn = get_db_connection()
     cur = conn.cursor()
+    has_association = False
     try:
+        cur.execute("SELECT politica_id FROM parametro WHERE politica_id = %s", (politica_id,))
+        association = cur.fetchone()
+        if association:
+            has_association = True
+
+
         cur.execute("""
             SELECT 
                 p.id, p.nome, p.descricao, p.is_ativo, p.sas_folder_id, p.sas_parent_uri, p.created_at, p.updated_at, 
@@ -328,6 +335,7 @@ def list_politica_id(politica_id):
                 "created_at": politica[6],
                 "updated_at": politica[7],
                 "cluster_id": politica[8],
+                "has_association":has_association,
                 "cluster": {
                     "id": politica[8],
                     "nome": politica[9],
@@ -346,6 +354,35 @@ def list_politica_id(politica_id):
     except Exception as e:
         print(f"Erro ao listar política: {e}")
         return None
+    finally:
+        cur.close()
+        conn.close()
+
+
+def delete_politica(politica_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # Verifica se a política existe
+        cur.execute("SELECT 1 FROM politica WHERE id = %s", (politica_id,))
+        politica_existe = cur.fetchone()
+
+        if not politica_existe:
+            return jsonify({"error": "Política não encontrada"}), 404
+
+        # Verifica se a política está associada a algum parâmetro
+        cur.execute("SELECT politica_id FROM parametro WHERE politica_id = %s", (politica_id,))
+        association = cur.fetchone()
+
+        if association:
+            return jsonify({"error": "Não é possível excluir a política pois está associada a um parâmetro", "campos_error": ["politica_associada"]}), 400
+        else:
+            cur.execute("DELETE FROM politica WHERE id = %s", (politica_id,))
+            conn.commit()
+            return jsonify({"message": "Política excluída com sucesso"}), 200
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
     finally:
         cur.close()
         conn.close()

@@ -141,12 +141,12 @@ def create_variaveis_base(id_parametros):
 def create_dados_base(id_parametros):
     return create_dados(id_parametros)
 
-### Folders
-@app.route('/api/v1/front/segmentos', methods=['POST'])
+####################### Folders ########################################################
+""" @app.route('/api/v1/front/segmentos', methods=['POST'])
 def create_segments():
-    return create_segmento(token, global_uri)
+    return create_segmento(token, global_uri) """
 
-@app.route('/api/v1/front/segmentos_base', methods=['POST'])
+@app.route('/api/v1/front/segmentos', methods=['POST'])
 def create_segments_data_base():
     return create_segmento_data_base()
 
@@ -164,13 +164,16 @@ def list_all_segmentos():
 def list_id_segmentos(segmento_id):
     return list_segmentos_id(segmento_id)
 
+@app.route('/api/v1/front/segmentos/<string:segmento_id>', methods=['DELETE'])
+def del_id_segmentos(segmento_id):
+    return delete_segmento(segmento_id)
 
-# Clusters
-@app.route('/api/v1/front/clusters', methods=['POST'])
+# Clusters 
+""" @app.route('/api/v1/front/clusters', methods=['POST'])
 def create_cluster():
-    return criar_cluster(token)
+    return criar_cluster(token) """
 
-@app.route('/api/v1/front/clusters_base', methods=['POST'])
+@app.route('/api/v1/front/clusters', methods=['POST'])
 def create_cluster_data_base():
     return criar_cluster_data_base()
 
@@ -186,12 +189,16 @@ def list_id_cluster(cluster_id):
 def alter_cluster(cluster_id):
     return edit_cluster(cluster_id)
     
+@app.route('/api/v1/front/clusters/<string:cluster_id>', methods=['DELETE'])
+def del_cluster(cluster_id):
+    return delete_cluster(cluster_id)
+    
 # Politicas
-@app.route('/api/v1/front/politicas', methods=['POST'])
+""" @app.route('/api/v1/front/politicas', methods=['POST'])
 def create_politica():
-    return criar_politica(token)
+    return criar_politica(token) """
 
-@app.route('/api/v1/front/politicas_base', methods=['POST'])
+@app.route('/api/v1/front/politicas', methods=['POST'])
 def create_politica_data_base():
     return criar_politica_data_base()
 
@@ -202,6 +209,10 @@ def lit_id_politica(politica_id):
 @app.route('/api/v1/front/politicas/<string:politica_id>', methods=['PUT'])
 def alter_politica(politica_id):
     return edit_politica(politica_id)
+
+@app.route('/api/v1/front/politicas/<string:politica_id>', methods=['DELETE'])
+def del_politica(politica_id):
+    return delete_politica(politica_id)
 
 
 @app.route('/api/v1/front/politicas', methods=['GET'])
@@ -214,13 +225,8 @@ def get_all_politica():
 def get_index():
     return make_response(jsonify({"sucesso":"Bem vindo"}))
 
-
-
 if __name__ == "__main__":
     app.run(debug=False, ssl_context='adhoc',port=8080)
-
-    #app.run(app.run(port=8080), debug=False, ssl_context='adhoc')
-    #app.run(port=8080, debug=True, ssl_context='adhoc') #usar com https no postaman
 
 # Função para execução do loop de verificação em uma thread
 def run_verification():

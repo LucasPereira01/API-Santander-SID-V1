@@ -16,7 +16,7 @@ url_path_sid_analytics = os.getenv("URL_PATH_ANALYTICS_SID")
 
 app = Flask(__name__)
 
-def create_segmento(token,global_uri):
+""" def create_segmento(token,global_uri):
     data = request.get_json()
     # Verifica se o cabeçalho Authorization está presente na requisição
     
@@ -93,9 +93,9 @@ def create_segmento(token,global_uri):
         
         cur.execute(
             """
-            INSERT INTO segmento (id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            """,
+            #INSERT INTO segmento (id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri)
+            #VALUES (%s, %s, %s, %s, %s, %s)
+""",
             (segmento_id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri)
         )
         conn.commit()
@@ -106,9 +106,19 @@ def create_segmento(token,global_uri):
         return jsonify({"error": str(e)}), 500
     finally:
         cur.close()
-        conn.close()
+        conn.close() """
 
+""" def list_folder_sid(token):
+    url = f"{url_path_sid}/folders/folders?filter=eq(id, 'c024b20a-213e-4923-93d6-8aa678919124')"
+    authorization = f'Bearer {token}'
+    headers = {
+        "Authorization": authorization,
+        "Accept": "application/vnd.sas.collection+json, application/json"
+    }
 
+    response = requests.get(url, headers=headers, verify=False)
+    print(response.json())
+    return response.json() """
 
 def create_segmento_data_base():
     data = request.get_json()
@@ -168,6 +178,7 @@ def create_segmento_data_base():
 
 def edit_segmento(segmento_id):
     data = request.get_json()
+    nome = data.get('nome')
     descricao = data.get('descricao', '')
     is_ativo = data.get('is_ativo', True)
 
@@ -188,23 +199,43 @@ def edit_segmento(segmento_id):
     cur = conn.cursor()
 
     updated_at = datetime.now()
+    
+    has_association = False
 
     try:
-        # verifica se exite o id na table
-        cur.execute("SELECT 1 FROM  segmento WHERE id = %s",(segmento_id,))
+        # verifica se existe o id na tabela
+        cur.execute("SELECT 1 FROM segmento WHERE id = %s",(segmento_id,))
         segmento_existe = cur.fetchone()
 
         if not segmento_existe:
             return jsonify({"error":"Segmento nao encontrado"}),404
         
-        cur.execute(
+        # Verifica se há alguma associação do segmento com clusters
+        cur.execute("SELECT segmento_id FROM clusters WHERE segmento_id = %s", (segmento_id,))
+        association = cur.fetchone()
+        if association:
+            has_association = True
+        # Atualiza apenas se houver nome na requisição ou se não houver associação com clusters
+
+        if has_association and nome:
+            return jsonify({"error": "O 'nome' nao pode ser alterado, esta associado a um cluster","campos_error":["nome"]})
+        
+        if nome and not has_association:
+            query = """
+                UPDATE segmento
+                SET nome = %s, descricao = %s, is_ativo = %s, updated_at = %s
+                WHERE id = %s
             """
-            UPDATE segmento
-            SET descricao = %s, is_ativo = %s, updated_at = %s
-            WHERE id = %s
-            """,
-            (descricao, is_ativo, updated_at, segmento_id)
-        )
+            params = (nome, descricao, is_ativo, updated_at, segmento_id)
+        else:
+            query = """
+                UPDATE segmento
+                SET descricao = %s, is_ativo = %s, updated_at = %s
+                WHERE id = %s
+            """
+            params = (descricao, is_ativo, updated_at, segmento_id)
+        
+        cur.execute(query, params)
         conn.commit()
 
         return jsonify({"message": "Segmento Atualizado com Sucesso","id":segmento_id}), 200
@@ -214,6 +245,7 @@ def edit_segmento(segmento_id):
     finally:
         cur.close()
         conn.close()
+
 
 
 def list_segmentos():
@@ -243,28 +275,63 @@ def list_segmentos():
         conn.close()
 
 def list_segmentos_id(segmento_id):
+    has_association = False
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri  FROM segmento WHERE id = %s",(segmento_id,))
+        cur.execute("SELECT id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri FROM segmento WHERE id = %s", (segmento_id,))
         segmento = cur.fetchone()
-        
         if segmento:
+            # Usando a função de associação para verificar se há alguma associação do segmento com clusters
+            # Verifica se há alguma associação do segmento com clusters
+            cur.execute("SELECT segmento_id FROM clusters WHERE segmento_id = %s", (segmento_id,))
+            association = cur.fetchone()
+            if association:
+                has_association = True
+
             result = {
                 "id": segmento[0],
                 "nome": segmento[1],
                 "descricao": segmento[2],
                 "is_ativo": segmento[3],
                 "sas_folder_id": segmento[4],
-                "sas_parent_uri ": segmento[5]
+                "sas_parent_uri": segmento[5],
+                "has_association": has_association
             }
+            return result
         else:
-           return jsonify({"error": "Segmento não encontrado"}), 500
-
-        return result
+            return jsonify({"error": "Segmento não encontrado"}), 500
     except Exception as e:
         print(f"Erro ao listar segmentos: {e}")
         return None
+    finally:
+        cur.close()
+        conn.close()
+
+def delete_segmento(segmento_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        # Verifica se o segmento existe
+        cur.execute("SELECT 1 FROM segmento WHERE id = %s", (segmento_id,))
+        segmento_existe = cur.fetchone()
+
+        if not segmento_existe:
+            return jsonify({"error": "Segmento não encontrado"}), 404
+
+        # Verifica se o segmento está associado a algum cluster
+        cur.execute("SELECT segmento_id FROM clusters WHERE segmento_id = %s", (segmento_id,))
+        association = cur.fetchone()
+
+        if association:
+            return jsonify({"error": "Não é possível excluir o segmento pois está associado a um cluster","campos_error":["segmento_associado"]}), 400
+        else:
+            cur.execute("DELETE FROM segmento WHERE id = %s", (segmento_id,))
+            conn.commit()
+            return jsonify({"message": "Segmento excluído com sucesso"}), 200
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
     finally:
         cur.close()
         conn.close()
