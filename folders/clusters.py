@@ -33,7 +33,7 @@ def busca_all_cluster():
         cur.execute("""
             SELECT
                 c.id, c.nome, c.descricao, c.is_ativo, c.sas_folder_id,
-                c.sas_parent_uri, c.created_at, c.updated_at, c.segmento_id,
+                c.sas_parent_uri,c.sas_test_folder_id,c.sas_test_parent_uri, c.created_at, c.updated_at, c.segmento_id,
                 s.nome AS segmento_nome, s.is_ativo AS segmento_ativo
             FROM clusters c
             JOIN segmento s ON c.segmento_id = s.id
@@ -50,19 +50,21 @@ def busca_all_cluster():
                 "is_ativo": cluster[3],
                 "sas_folder_id": cluster[4],
                 "sas_parent_uri": cluster[5],
-                "created_at": cluster[6],
-                "updated_at": cluster[7],
-                "segmento_id": cluster[8],
+                "sas_test_folder_id": cluster[6],
+                "sas_test_parent_uri": cluster[7],
+                "created_at": cluster[8],
+                "updated_at": cluster[9],
+                "segmento_id": cluster[10],
                 "segmento": {
-                    "id": cluster[8],
-                    "nome": cluster[9],
-                    "segmento_ativo": cluster[10]
+                    "id": cluster[10],
+                    "nome": cluster[11],
+                    "segmento_ativo": cluster[12]
                 }
             })
 
         return jsonify(result)
     except (Exception, psycopg2.DatabaseError) as error:
-        return jsonify({"error": "Falha ao tentar buscar o clusters"}), 500
+        return jsonify({"error": "Falha ao tentar buscar os clusters"}), 500
     finally:
         cur.close()
         conn.close()
@@ -322,6 +324,11 @@ def edit_cluster(cluster_id):
 
     if len(descricao) > 350:
         return jsonify({"error": "Descrição deve ter no máximo 350 caracteres", "campos_error": ["descricao"]}), 400
+    
+    # Validação do campo 'nome' usando expressão regular
+    name_regex = re.compile(r"^[A-Za-z0-9_]+$")
+    if not name_regex.match(nome):
+         return jsonify({"error": "Nome deve conter apenas letras, números ou underscores","campos_error":["nome"]}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -345,6 +352,12 @@ def edit_cluster(cluster_id):
         # Atualiza apenas se houver nome na requisição ou se não houver associação com políticas
         if has_association and nome:
             return jsonify({"error": "O 'nome' não pode ser alterado, está associado a uma Política", "campos_error": ["nome"]})
+        
+        cur.execute("SELECT * FROM clusters WHERE nome = %s AND segmento_id = %s",(nome, segmento_id))
+        existing_cluster = cur.fetchone()
+
+        if existing_cluster:
+            return jsonify({"error":"Nome do cluster ja existe para este segmento","campos_error":["nome"]}),400
 
         if nome:
             query = """

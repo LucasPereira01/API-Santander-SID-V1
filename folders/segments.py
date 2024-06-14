@@ -194,6 +194,11 @@ def edit_segmento(segmento_id):
 
     if len(descricao) > 350:
         return jsonify({"error": "Descrição deve ter no máximo 350 caracteres","campos_error":["descricao"]}), 400
+    
+    # Validação do campo 'nome' usando expressão regular
+    name_regex = re.compile(r"^[A-Za-z0-9_]+$")
+    if not name_regex.match(nome):
+        return jsonify({"error": "Nome deve conter apenas letras, números ou underscores","campos_error":["nome"]}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -221,6 +226,12 @@ def edit_segmento(segmento_id):
             return jsonify({"error": "O 'nome' nao pode ser alterado, esta associado a um cluster","campos_error":["nome"]})
         
         if nome and not has_association:
+            cur.execute("SELECT * FROM segmento WHERE nome = %s",(nome,))
+            existing_cluster = cur.fetchone()
+
+            if existing_cluster: 
+                return jsonify({"error": "O segmento ja existe","campos_error":["nome"]}), 400    
+
             query = """
                 UPDATE segmento
                 SET nome = %s, descricao = %s, is_ativo = %s, updated_at = %s
@@ -253,7 +264,7 @@ def list_segmentos():
     cur = conn.cursor()
 
     try:
-        cur.execute("SELECT id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri FROM segmento")
+        cur.execute("SELECT id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri,sas_test_folder_id, sas_test_parent_uri FROM segmento")
         segmentos = cur.fetchall()
         result = [
             {
@@ -262,7 +273,9 @@ def list_segmentos():
                 "descricao": row[2],
                 "is_ativo": row[3],
                 "sas_folder_id": row[4],
-                "sas_parent_uri": row[5]
+                "sas_parent_uri": row[5],
+                "sas_test_folder_id": row[6],
+                "sas_test_parent_uri": row[7]
             }
             for row in segmentos
         ]

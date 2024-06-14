@@ -6,17 +6,15 @@ import time
 import datetime
 from lookups.parametros.parametros import get_all_parametro
 
-
 # Carrega as variáveis de ambiente do arquivo .env
 load_dotenv()
-total_sucesso = 0
-total_falha = 0
 
 # Acesso à variável de ambiente
 url_path_sid = os.getenv("URL_PATH_SID")
 url_path_sid_analytics = os.getenv("URL_PATH_ANALYTICS_SID")
-def create_segmento_sid(token, segmento_id, nome, descricao,sas_folder_id):
-    if sas_folder_id is None:
+
+def create_segmento_sid(token, segmento_id, nome, descricao,sas_test_folder_id):
+    if sas_test_folder_id is None:
         conn = get_db_connection()
         cur = conn.cursor()
 
@@ -51,12 +49,12 @@ def create_segmento_sid(token, segmento_id, nome, descricao,sas_folder_id):
                 raise Exception("'parentFolderUri' or 'id' not found in response data")
             
             cur.execute(
-                """
+                """ 
                 UPDATE segmento 
-                SET sas_parent_uri = %s, sas_folder_id = %s
+                SET sas_test_folder_id = %s, sas_test_parent_uri = %s 
                 WHERE id = %s
                 """,
-                (sas_parent_uri, sas_folder_id,segmento_id)
+                (sas_folder_id, sas_parent_uri ,segmento_id) 
             )
             # Commit the transaction
             conn.commit()
@@ -70,21 +68,23 @@ def create_segmento_sid(token, segmento_id, nome, descricao,sas_folder_id):
             cur.close()
             conn.close()
 
-    print('Segmento ja existe')
+    else: print('Segmento ja existe')
 
-def criar_cluster_sid(token,nome,descricao,segmento_id,cluster_id,sas_folder_id):
-    if sas_folder_id is None:
+def criar_cluster_sid(token,nome,descricao,segmento_id,cluster_id,sas_test_folder_id):
+    if sas_test_folder_id is None:
         conn = get_db_connection()
         cur = conn.cursor()
 
         cur.execute("SELECT * FROM segmento WHERE id = %s",(segmento_id,))
         segmento = cur.fetchone()
+        print("segmento",segmento)
         if not segmento:
             print("Segmento não encontrado")
             print({"error":"Segmento não encontrado"},400)
             return
 
-        sas_parent_uri_seg = segmento[5]
+        sas_parent_uri_seg = segmento[9]
+        print("sas_parent_uri_seg",sas_parent_uri_seg)
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}",
@@ -125,7 +125,7 @@ def criar_cluster_sid(token,nome,descricao,segmento_id,cluster_id,sas_folder_id)
             cur.execute(
                         """
                         UPDATE clusters 
-                        SET sas_parent_uri = %s, sas_folder_id = %s
+                        SET sas_test_parent_uri = %s, sas_test_folder_id = %s
                         WHERE id = %s
                         """,
                         (sas_parent_uri, sas_folder_id, cluster_id)
@@ -139,19 +139,20 @@ def criar_cluster_sid(token,nome,descricao,segmento_id,cluster_id,sas_folder_id)
         finally:
             cur.close()
             conn.close()
-    print('Cluster ja Existe')
+    else: print('Cluster ja Existe')
     
-def criar_politica_sid(token,nome,descricao,cluster_id,politica_id,sas_folder_id):
-    if  sas_folder_id is None:
+def criar_politica_sid(token,nome,descricao,cluster_id,politica_id,sas_test_folder_id):
+    if  sas_test_folder_id is None:
         conn = get_db_connection()
         cur = conn.cursor()
         
         cur.execute("SELECT * FROM clusters WHERE id = %s",(cluster_id,))
         cluster = cur.fetchone()
+        print("cluster",cluster)
         if not cluster:
             print({"error":"Cluster não encontrado"})
             return
-        sas_parent_uri_cluster = cluster[5]
+        sas_parent_uri_cluster = cluster[10]
 
         headers = {
             "Content-Type": "application/json",
@@ -196,7 +197,7 @@ def criar_politica_sid(token,nome,descricao,cluster_id,politica_id,sas_folder_id
             cur.execute(
             """
             UPDATE politica 
-            SET sas_parent_uri = %s, sas_folder_id = %s
+            SET sas_test_parent_uri = %s, sas_test_folder_id = %s
             WHERE id = %s
             """,
             (sas_parent_uri, sas_folder_id, politica_id)
@@ -211,9 +212,10 @@ def criar_politica_sid(token,nome,descricao,cluster_id,politica_id,sas_folder_id
         finally:
             if conn is not None:
                 conn.close()
-    print("Politica ja existe")
+    else:
+        print("Politica ja existe")  
 
-def create_domains_and_entries_sid(token, name, descricao, id_politica, parametro_id,sas_domain_id, entries=None):
+def create_domains_and_entries_sid(token, name, descricao, id_politica, parametro_id, sas_domain_id, entries=None):
     status_code = '004' # mudar isso
 
     if sas_domain_id is None:
@@ -229,7 +231,7 @@ def create_domains_and_entries_sid(token, name, descricao, id_politica, parametr
                 print(({"error": "Política não encontrada"}), 400)
                 return
 
-            sas_parent_folder_uri_cluster = politica[5]
+            sas_parent_folder_uri_cluster = politica[10]
 
             url = f"{url_path_sid}/referenceData/domains?parentFolderUri={sas_parent_folder_uri_cluster}"
 
@@ -262,10 +264,10 @@ def create_domains_and_entries_sid(token, name, descricao, id_politica, parametr
                 cur.execute(
                             """
                             UPDATE parametro 
-                            SET sas_domain_id = %s
+                            SET sas_domain_id = %s, status_code = %s 
                             WHERE id = %s
                             """,
-                            (relevant_info["id"], parametro_id)
+                            (relevant_info["id"],status_code, parametro_id)
                         )
                         # Commit the transaction
                 conn.commit()
@@ -311,11 +313,11 @@ def create_domains_and_entries_sid(token, name, descricao, id_politica, parametr
                         print({"error": response_entries.text}, response_entries.status_code)
 
                 else:
-                    total_sucesso += 1
+                   
                     print({"domain_created": relevant_info}, 201)
 
             else:
-                total_falha += 1
+              
                 print({"error": "Falha ao criar domínio", "json": response.json()}, response.status_code)
 
         except Exception as e:
@@ -326,7 +328,7 @@ def create_domains_and_entries_sid(token, name, descricao, id_politica, parametr
         finally:
             cur.close()
             conn.close()
-    print('Parametro Ja existe')
+    else: print('Parametro Ja existe')
 
 
 agora = datetime.datetime.now()
@@ -336,10 +338,7 @@ data_hora_atual = agora.strftime("%Y-%m-%d %H:%M:%S")
 def verificar_e_criar(token):
     parametros = get_all_parametro()
     parametros_005 = [parametro for parametro in parametros if parametro['status_code'] == '005']
-     
-    total_sucesso = 0
-    total_falha = 0
-    
+
     if parametros:
         for parametro in parametros_005:
             segmento = parametro['politica']['cluster']['segmento']
@@ -349,15 +348,15 @@ def verificar_e_criar(token):
 
             try:
                 # Cria o segmento
-                create_segmento_sid(token, segmento['id'], segmento['nome'], segmento['descricao'],segmento['sas_folder_id'])
+                create_segmento_sid(token, segmento['id'], segmento['nome'], segmento['descricao'],segmento['sas_test_folder_id'])
                 print("Segmento: ",data_hora_atual)
 
                 # Cria o cluster
-                criar_cluster_sid(token, cluster['nome'], cluster['descricao'], cluster['segmento_id'], cluster['id'],cluster['sas_folder_id'])
+                criar_cluster_sid(token, cluster['nome'], cluster['descricao'], cluster['segmento_id'], cluster['id'],cluster['sas_test_folder_id'])
                 print("Cluster: ",data_hora_atual)
 
                 # Cria a política
-                criar_politica_sid(token, politica['nome'], politica['descricao'], politica['cluster_id'], politica['id'],politica['sas_folder_id'])
+                criar_politica_sid(token, politica['nome'], politica['descricao'], politica['cluster_id'], politica['id'],politica['sas_test_folder_id'])
                 print("Politica: ",data_hora_atual)
 
                 # Verifica se 'entries' está presente em parametro e define entries
@@ -371,8 +370,7 @@ def verificar_e_criar(token):
                 print(f"Erro ao criar parâmetro: {e}")
                 print("Fim: ",data_hora_atual)
 
-    print(f"Total de parâmetros criados com sucesso: {total_sucesso}")
-    print(f"Total de parâmetros com falha: {total_falha}")
+
 
 # Função para executar a verificação a cada 5 minutos
 def verificar_periodicamente(token):

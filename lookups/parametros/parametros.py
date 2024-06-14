@@ -91,19 +91,85 @@ def create_parametro():
         cur.close()
         conn.close()
 
+def lista_parametros_data_table():
+    # Obtenha o corpo da solicitação
+    body = request.get_json()
+
+    # Extraia os parâmetros do corpo da solicitação
+    offset = body.get('offset', 0)
+    limit = body.get('limit', 25)
+    order = body.get('order', None)
+    count = body.get('count', 0)
+    filters = body.get('filters', [])
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    try:
+        # Construa a consulta SQL baseada nos parâmetros fornecidos
+        query = "SELECT * FROM parametro"
+
+        # Aplicar filtros
+        if filters:
+            query += " WHERE "
+            for i, f in enumerate(filters):
+                query += f"{f['column']} ILIKE '%{f['value']}%'"
+                if i < len(filters) - 1:
+                    query += " AND "
+
+        # Aplicar a ordenação
+        if order:
+            query += f" ORDER BY {order['column']} {order['direction']}"
+
+        # Aplicar limite e deslocamento
+        query += f" LIMIT {limit} OFFSET {offset}"
+
+        # Executar a consulta SQL
+        cur.execute(query)
+        parametros = cur.fetchall()
+
+        # Verificar se precisa retornar o total de registros
+        if count:
+            cur.execute("SELECT COUNT(*) FROM parametro")
+            total_registros = cur.fetchone()[0]
+        else:
+            total_registros = None
+
+        # Montar a resposta
+        response = {
+            "offset": offset,
+            "limit": limit,
+            "order": order,
+            "count": total_registros,
+            "items": parametros
+        }
+
+        return response
+
+    except Exception as e:
+        print(f"Erro ao listar parâmetros: {e}")
+        return None
+
+    finally:
+        cur.close()
+        conn.close()
+
 def get_all_parametro():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
         cur.execute(
             """
-            SELECT p.id, p.nome, p.descricao, p.modo, p.data_hora_vigencia, p.versao, p.is_vigente, 
-                   p.sas_domain_id, p.sas_content_id, p.created_at, p.updated_at, p.deleted_at, 
-                   p.status_code, p.parametro_parent_id, p.politica_id, p.sas_user_id,
-                   po.*,
-                   c.*, 
-                   s.*,
-                   d.informacao, d.sas_key, d.sas_value
+            SELECT 
+                p.id, p.nome, p.descricao, p.modo, p.data_hora_vigencia, p.versao, p.is_vigente, 
+                p.sas_domain_id, p.sas_content_id, p.created_at, p.updated_at, p.deleted_at, 
+                p.status_code, p.parametro_parent_id, p.politica_id, p.sas_user_id,
+                po.*,
+                c.*, 
+                s.*,
+                d.informacao, d.sas_key, d.sas_value,
+                COALESCE(c.sas_test_folder_id::text, null) as sas_test_folder_id,
+                COALESCE(c.sas_test_parent_uri, null) as sas_test_parent_uri
             FROM public.parametro p
             JOIN politica po ON p.politica_id = po.id
             JOIN clusters c ON po.cluster_id = c.id
@@ -113,64 +179,71 @@ def get_all_parametro():
         )
         parametros = cur.fetchall()
 
+    
         parametros_json = [
-            {
-                "id": row[0],
-                "nome": row[1],
-                "descricao": row[2],
-                "modo": row[3],
-                "data_hora_vigencia": row[4],
-                "versao": row[5],
-                "is_vigente": row[6],
-                "sas_domain_id": row[7],
-                "sas_content_id": row[8],
-                "created_at": row[9],
-                "updated_at": row[10],
-                "deleted_at": row[11],
-                "status_code": row[12],
-                "parametro_parent_id": row[13],
-                "politica_id": row[14],
-                "sas_user_id": row[15],
-                "politica": {
-                    "id": row[16],
-                    "nome": row[17],
-                    "descricao": row[18],
-                    "is_ativo": row[19],
-                    "sas_folder_id": row[20],
-                    "sas_parent_uri": row[21],
-                    "created_at": row[22],
-                    "updated_at": row[23],
-                    "cluster_id": row[24],
-                    "cluster": {
-                        "id": row[25],
-                        "nome": row[26],
-                        "descricao": row[27],
-                        "is_ativo": row[28],
-                        "sas_folder_id": row[29],
-                        "sas_parent_uri": row[30],
-                        "created_at": row[31],
-                        "updated_at": row[32],
-                        "segmento_id": row[33],
-                        "segmento": {
-                            "id": row[34],
-                            "nome": row[35],
-                            "descricao": row[36],
-                            "is_ativo": row[37],
-                            "sas_folder_id": row[38],
-                            "sas_parent_uri": row[39],
-                            "created_at": row[40],
-                            "updated_at": row[41]
+                    {
+                        "id": row[0],
+                        "nome": row[1],
+                        "descricao": row[2],
+                        "modo": row[3],
+                        "data_hora_vigencia": row[4],
+                        "versao": row[5],
+                        "is_vigente": row[6],
+                        "sas_domain_id": row[7],
+                        "sas_content_id": row[8],
+                        "created_at": row[9],
+                        "updated_at": row[10],
+                        "deleted_at": row[11],
+                        "status_code": row[12],
+                        "parametro_parent_id": row[13],
+                        "politica_id": row[14],
+                        "sas_user_id": row[15],
+                        "politica": {    #  nome, descricao, is_ativo, sas_folder_id, sas_parent_uri, created_at, updated_at, sas_test_folder_id, sas_test_parent_uri
+                            "id": row[16],
+                            "nome": row[17],
+                            "descricao": row[18],
+                            "is_ativo": row[19],
+                            "sas_folder_id": row[20],
+                            "sas_parent_uri": row[21],
+                            "created_at": row[22],
+                            "updated_at": row[23],
+                            "cluster_id": row[24],
+                            "sas_test_folder_id": row[25],
+                            "sas_test_parent_uri": row[26],
+                            "cluster": {
+                                "id": row[27],
+                                "nome": row[28],
+                                "descricao": row[29],
+                                "is_ativo": row[30],
+                                "sas_folder_id": row[31],
+                                "sas_parent_uri": row[32],
+                                "created_at": row[33],
+                                "updated_at": row[34],
+                                "segmento_id": row[35],
+                                "sas_test_folder_id": row[36],
+                                "sas_test_parent_uri": row[37],
+                                "segmento": {
+                                    "id": row[38],
+                                    "nome": row[39],
+                                    "descricao": row[40],
+                                    "is_ativo": row[41],
+                                    "sas_folder_id": row[42],
+                                    "sas_parent_uri": row[43],
+                                    "created_at": row[44],
+                                    "updated_at": row[45],
+                                    "sas_test_folder_id": row[46],
+                                    "sas_test_parent_uri": row[47],
+                                }
+                            }
+                        },
+                        "dado": {
+                            "informacao": row[48],
+                            "sas_key": row[49],
+                            "sas_value": row[50]
                         }
                     }
-                },
-                "dado": {
-                    "informacao": row[42],
-                    "sas_key": row[43],
-                    "sas_value": row[44]
-                }
-            }
-            for row in parametros
-        ]
+                    for row in parametros
+                ]
 
         return parametros_json
     except Exception as e:

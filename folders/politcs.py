@@ -204,6 +204,8 @@ def criar_politica_data_base():
 
 def edit_politica(politica_id):
     data = request.get_json()
+    nome = data.get('nome')
+    cluster_id = data.get('cluster_id')
     descricao = data.get('descricao', '')
     is_ativo = data.get('is_ativo', True)
 
@@ -219,11 +221,17 @@ def edit_politica(politica_id):
 
     elif len(descricao) > 350:
                 return jsonify({"error": "Descrição deve ter no máximo 350 caracteres","campos_error":["descricao"]}), 400
+    
+    # Validação do campo 'nome' usando expressão regular
+    name_regex = re.compile(r"^[A-Za-z0-9_]+$")
+    if not name_regex.match(nome):
+        return jsonify({"error": "Nome deve conter apenas letras, números ou underscores","campos_error":["nome"]}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
 
     updated_at = datetime.now()
+    has_association = False
 
     try:
         # verifica se exite o id na table
@@ -232,15 +240,41 @@ def edit_politica(politica_id):
 
         if not politica_existe:
             return jsonify({"error":"Politica nao encontrado"}),404
+        
 
-        cur.execute(
+
+                # Verifica se há alguma associação do cluster com políticas
+        cur.execute("SELECT politica_id FROM parametro WHERE politica_id = %s", (politica_id,))
+        association = cur.fetchone()
+        if association:
+            has_association = True
+
+        # Atualiza apenas se houver nome na requisição ou se não houver associação com políticas
+        if has_association and nome:
+            return jsonify({"error": "O 'nome' não pode ser alterado, está associado a um Parametro", "campos_error": ["nome"]})
+        
+        cur.execute("SELECT * FROM politica WHERE nome = %s AND cluster_id = %s",(nome,cluster_id))
+        existing_cluster = cur.fetchone()
+
+        if existing_cluster:
+            return jsonify({"error":"Nome da Politica ja existe para este Cluster","campos_error":["nome"]}),400
+
+        if nome:
+            query = """
+                UPDATE politica
+                SET nome = %s, descricao = %s, is_ativo = %s, updated_at = %s, cluster_id = %s
+                WHERE id = %s
             """
-            UPDATE politica
-            SET descricao = %s, is_ativo = %s, updated_at = %s
-            WHERE id = %s
-            """,
-            (descricao, is_ativo, updated_at, politica_id)
-        )
+            params = (nome, descricao, is_ativo, updated_at, cluster_id, politica_id)
+        else:
+            query = """
+                UPDATE politica
+                SET descricao = %s, is_ativo = %s, updated_at = %s
+                WHERE id = %s
+            """
+            params = (descricao, is_ativo, updated_at, politica_id)
+        
+        cur.execute(query, params)
         conn.commit()
 
         return jsonify({"message": "Politica Atualizada com Sucesso","id":politica_id}), 200
@@ -259,34 +293,38 @@ def busca_all_politica():
         cur = conn.cursor()
         
 
-        cur.execute("""SELECT p.id, p.nome, p.descricao, p.is_ativo, p.sas_folder_id, p.sas_parent_uri, p.created_at, p.updated_at, p.cluster_id,
-                    c.nome AS cluster_nome, c.is_ativo AS cluster_ativo, s.id ,s.nome AS segmento_name, s.is_ativo AS segmento_ativo
-                     FROM politica p
-                    JOIN clusters c ON p.cluster_id = c.id
-                    JOIN segmento s ON c.segmento_id = s.id
-                """)
-        clusters = cur.fetchall()
+        cur.execute(
+            """
+                SELECT p.id, p.nome, p.descricao, p.is_ativo, p.sas_folder_id, p.sas_parent_uri, p.sas_test_folder_id, p.sas_test_parent_uri, p.created_at, p.updated_at, p.cluster_id,
+                c.nome AS cluster_nome, c.is_ativo AS cluster_ativo, s.id ,s.nome AS segmento_name, s.is_ativo AS segmento_ativo
+                FROM politica p
+                JOIN clusters c ON p.cluster_id = c.id
+                JOIN segmento s ON c.segmento_id = s.id
+            """)
+        politicas = cur.fetchall()
 
         result = []
-        for cluster in clusters:
+        for politica in politicas:
             result.append({
-                "id": cluster[0],
-                "nome": cluster[1],
-                "descricao": cluster[2],
-                "is_ativo": cluster[3],
-                "sas_folder_id": cluster[4],
-                "sas_parent_uri": cluster[5],
-                "created_at": cluster[6],
-                "updated_at": cluster[7],
-                "cluster_id": cluster[8],
+                "id": politica[0],
+                "nome": politica[1],
+                "descricao": politica[2],
+                "is_ativo": politica[3],
+                "sas_folder_id": politica[4],
+                "sas_parent_uri": politica[5],
+                "sas_test_folder_id": politica[6],
+                "sas_test_parent_uri": politica[7],
+                "created_at": politica[8],
+                "updated_at": politica[9],
+                "cluster_id": politica[10],
                 "cluster": {
-                    "id": cluster[8],
-                    "nome": cluster[9],
-                    "cluster_ativo": cluster[10],
+                    "id": politica[10],
+                    "nome": politica[11],
+                    "cluster_ativo": politica[12],
                     "segmento": {
-                        "id": cluster[11],
-                        "nome": cluster[12],
-                        "segmento_ativo": cluster[13]
+                        "id": politica[13],
+                        "nome": politica[14],
+                        "segmento_ativo": politica[15]
                     }
                 }
             })
