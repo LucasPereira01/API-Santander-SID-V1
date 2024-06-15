@@ -99,41 +99,145 @@ def lista_parametros_data_table():
     offset = body.get('offset', 0)
     limit = body.get('limit', 25)
     order = body.get('order', None)
-    count = body.get('count', 0)
     filters = body.get('filters', [])
 
     conn = get_db_connection()
     cur = conn.cursor()
 
     try:
+        # Construa a consulta SQL baseada nos parâmetros fornecidos para contar os registros
+        query_count = """
+            SELECT 
+                COUNT(*)
+            FROM parametro p
+                JOIN parametro_status st ON p.status_code = st.code
+                JOIN politica po ON p.politica_id = po.id
+                JOIN clusters c ON po.cluster_id = c.id
+                JOIN segmento s ON c.segmento_id = s.id
+            WHERE
+                p.deleted_at IS NULL AND p.is_vigente IS true
+            """
         # Construa a consulta SQL baseada nos parâmetros fornecidos
-        query = "SELECT * FROM parametro"
+        query = """
+            SELECT 
+                p.id, p.nome, p.descricao, p.modo, p.versao,
+                st.code as status_code, st.type as status_type, st.description as status_description,
+                po.id as politica_id, po.nome as politica_nome,
+                c.id as cluster_id, c.nome as cluster_nome,
+                s.id as segmento_id, s.nome as segmento_nome
+            FROM parametro p
+                JOIN parametro_status st ON p.status_code = st.code
+                JOIN politica po ON p.politica_id = po.id
+                JOIN clusters c ON po.cluster_id = c.id
+                JOIN segmento s ON c.segmento_id = s.id
+            WHERE
+                p.deleted_at IS NULL AND p.is_vigente IS true
+            """
 
         # Aplicar filtros
         if filters:
-            query += " WHERE "
-            for i, f in enumerate(filters):
-                query += f"{f['column']} ILIKE '%{f['value']}%'"
-                if i < len(filters) - 1:
-                    query += " AND "
+            for filter in filters:
+                if filter['column'] == "nome":
+                    query_count += f" AND p.nome ILIKE '%{filter['value']}%'"
+                    query += f" AND p.nome ILIKE '%{filter['value']}%'"
+
+                if filter['column'] == "segmento":
+                    query_count += f" AND s.id = '{filter['value']}'"
+                    query += f" AND s.id = '{filter['value']}'"
+                
+                if filter['column'] == "cluster":
+                    query_count += f" AND c.id = '{filter['value']}'"
+                    query += f" AND c.id = '{filter['value']}'"
+
+                if filter['column'] == "politica":
+                    query_count += f" AND po.id = '{filter['value']}'"
+                    query += f" AND po.id = '{filter['value']}'"
+
+                if filter['column'] == "variavel":
+                    query_count += f" AND p.modo = '{filter['value']}'"
+                    query += f" AND p.modo = '{filter['value']}'"
+
+                if filter['column'] == "status":
+                    status_list = filter['value'].split(",")
+
+                    query_count += " AND st.code IN ("
+                    query += " AND st.code IN ("
+
+                    for sl in status_list:
+                        query_count += "'" + sl + "',"
+                        query += "'" + sl + "',"
+
+                    query_count = query_count[:-1] + ")"
+                    query = query[:-1] + ")"
 
         # Aplicar a ordenação
         if order:
-            query += f" ORDER BY {order['column']} {order['direction']}"
+            if order['column'] == "nome":
+                query += f" ORDER BY p.nome {order['direction']}"
+
+            if order['column'] == "segmento":
+                query += f" ORDER BY s.nome {order['direction']}"
+
+            if order['column'] == "cluster":
+                query += f" ORDER BY c.nome {order['direction']}"
+            
+            if order['column'] == "politica":
+                query += f" ORDER BY po.nome {order['direction']}"
+
+            if order['column'] == "variavel":
+                query += f" ORDER BY p.modo {order['direction']}"
+
+            if order['column'] == "versao":
+                query += f" ORDER BY p.versao {order['direction']}"
+
+            if order['column'] == "status":
+                query += f" ORDER BY st.description {order['direction']}"
+        else:
+            query += f" ORDER BY p.created_at DESC"
 
         # Aplicar limite e deslocamento
         query += f" LIMIT {limit} OFFSET {offset}"
+
+        # Executar o consulta SQL para contar os registros
+        cur.execute(query_count)
+        total_registros = cur.fetchone()[0]
 
         # Executar a consulta SQL
         cur.execute(query)
         parametros = cur.fetchall()
 
-        # Verificar se precisa retornar o total de registros
-        if count:
-            cur.execute("SELECT COUNT(*) FROM parametro")
-            total_registros = cur.fetchone()[0]
-        else:
-            total_registros = None
+        parametros_json = [
+            {
+                "id": row[0],
+                "nome": row[1],
+                "descricao": row[2],
+                "modo": row[3],
+                "versao": row[4],
+                "status_code": row[5],
+                "status": {
+                    "code": row[5],
+                    "type": row[6],
+                    "description": row[7]
+                },
+                "politica_id": row[8],
+                "politica": {
+                    "id": row[8],
+                    "nome": row[9],
+                    "cluster_id": row[10],
+                    "cluster": {
+                        "id": row[10],
+                        "nome": row[11],
+                        "segmento_id": row[12],
+                        "segmento": {
+                            "id": row[12],
+                            "nome": row[13]
+                        }
+                    }
+                }
+            }
+
+            for row in parametros
+        ]
 
         # Montar a resposta
         response = {
@@ -141,7 +245,8 @@ def lista_parametros_data_table():
             "limit": limit,
             "order": order,
             "count": total_registros,
-            "items": parametros
+            "filters": filters,
+            "items": parametros_json
         }
 
         return response

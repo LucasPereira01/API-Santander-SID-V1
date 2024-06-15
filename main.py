@@ -115,7 +115,7 @@ def update_entries_route():
     return update_entries(token)
 
 ## Parametros no banco
-@app.route('/api/v1/parametros/datatable', methods=['POST'])
+@app.route('/api/v1/front/parametros/datatable', methods=['POST'])
 def lista_data_table():
     return lista_parametros_data_table()
 
