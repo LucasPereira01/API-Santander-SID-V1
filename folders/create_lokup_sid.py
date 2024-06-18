@@ -260,7 +260,8 @@ def check_exites_domains(parametro_id):
 
 def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica, parametro_id, entries=None):
     sas_domain_id = check_exites_domains(parametro_id)
-
+    sas_user_id = 'teste'
+    
     if sas_domain_id is None:
         status_code = '004'
         conn = get_db_connection()
@@ -268,7 +269,7 @@ def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica,
 
         try:
             # Verificar se o parâmetro já possui um domínio SAS atribuído
-            cur.execute(f"SELECT * FROM  {schema_db}.parametro WHERE id = %s", (parametro_id,))
+            cur.execute(f"SELECT * FROM {schema_db}.parametro WHERE id = %s", (parametro_id,))
             parametro = cur.fetchone()
 
             if not parametro:
@@ -280,13 +281,12 @@ def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica,
                 return
 
             # Verificar se já existe um domínio SAS com o mesmo nome na política associada
-            cur.execute(f"SELECT * FROM  {schema_db}.politica WHERE id = %s", (id_politica,))
+            cur.execute(f"SELECT * FROM {schema_db}.politica WHERE id = %s", (id_politica,))
             politica = cur.fetchone()
 
             if not politica:
                 print("Política não encontrada")
-                print({"error": "Política não encontrada"}, 400)
-                return
+                return {"error": "Política não encontrada"}, 404
 
             sas_parent_folder_uri_cluster = politica['sas_test_parent_uri']
             url = f"{url_sid}/referenceData/domains?parentFolderUri={sas_parent_folder_uri_cluster}"
@@ -304,39 +304,42 @@ def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica,
                 "Accept": "application/vnd.sas.data.reference.domain+json, application/vnd.sas.data.reference.value.list+json, application/json, application/vnd.sas.error+json"
             }
 
+            # Criar o domínio SAS
             response = requests.post(url, headers=headers, json=payload, verify=False)
             response.raise_for_status()  # Lança uma exceção se o status da resposta não for 2xx
 
             domain_info = response.json()
 
-            relevant_info = {
-                "name": domain_info["name"],
-                "description": domain_info["description"],
-                "domainType": domain_info["domainType"],
-                "id": domain_info["id"],
-                "creationTimeStamp": domain_info["creationTimeStamp"],
-                "modifiedBy": domain_info["modifiedBy"],
-                "modifiedTimeStamp": domain_info["modifiedTimeStamp"]
-            }
-
+            # Atualizar o parâmetro com o ID do domínio SAS criado e status_code
             cur.execute(
                 f"""
                 UPDATE {schema_db}.parametro 
                 SET sas_domain_id = %s, status_code = %s 
                 WHERE id = %s
                 """,
-                (relevant_info["id"], status_code, parametro_id)
+                (domain_info["id"], status_code, parametro_id)
             )
             conn.commit()
+
+                            # Registrar evento de criação de parâmetro
+            cur.execute(
+                    f"""
+                    INSERT INTO {schema_db}.evento (status_code, sas_user_id, parametro_id)
+                    VALUES (%s, %s, %s)
+                    RETURNING id
+                    """,
+                    (status_code, sas_user_id, parametro_id)
+            )
+            conn.commit()
+
             print("Registro de Parâmetro atualizado com sucesso!")
 
             # Buscar os dados associados ao parâmetro no banco de dados
-            cur.execute(f"SELECT sas_key, sas_value FROM  {schema_db}.dado WHERE parametro_id = %s ", (parametro_id,))
+            cur.execute(f"SELECT sas_key, sas_value FROM {schema_db}.dado WHERE parametro_id = %s ", (parametro_id,))
             valores_dados = cur.fetchall()
 
-            sas_domain_id = relevant_info["id"]
-
             if valores_dados:
+                # Preparar as entradas para o domínio
                 payload_entries = []
                 for sas_key, sas_value in valores_dados:
                     payload_entries.append({
@@ -344,8 +347,8 @@ def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica,
                         "value": sas_value
                     })
 
-                # Enviar entradas para o domínio criado
-                url_entries = f"{url_sid}/referenceData/domains/{sas_domain_id}/contents"
+                # Enviar entradas para o domínio SAS
+                url_entries = f"{url_sid}/referenceData/domains/{domain_info['id']}/contents"
 
                 payload = {
                     "label": name,
@@ -364,6 +367,7 @@ def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica,
 
                 entries_info = response_entries.json()
 
+                # Atualizar o parâmetro com o ID da entrada criada e status_code
                 cur.execute(
                     f"""
                     UPDATE {schema_db}.parametro 
@@ -373,20 +377,23 @@ def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica,
                     (entries_info["id"], status_code, parametro_id)
                 )
                 conn.commit()
+
+
+                
                 print("Registro de Parâmetro atualizado com sucesso!")
                 print({
-                    "domain_created": relevant_info,
+                    "domain_created": domain_info,
                     "entries_created": entries_info
-                }, 201)
+                })
 
             else:
                 print("Sem entries fornecidas")
-                print({"domain_created": relevant_info}, 201)
+                print({"domain_created": domain_info})
 
         except Exception as e:
             conn.rollback()
             print(str(e))
-            print({"error": str(e)}, 500)
+            return {"error": str(e)}, 500
 
         finally:
             cur.close()
@@ -408,6 +415,7 @@ def type_variable(type): #string, decimal,integer,date,datetime,boolean
             return 'integer'
 
 def create_variavel_global(token, url_sid, nome, id_politica, parametro_id):
+    sas_user_id = 'lucas'
     sas_domain_id = check_exites_domains(parametro_id)
     if sas_domain_id is None :
         conn = get_db_connection()  
@@ -464,6 +472,7 @@ def create_variavel_global(token, url_sid, nome, id_politica, parametro_id):
                     "id": domain_info["id"],
                 }
                 status_code = '004'
+            
                 cur.execute(
                 f"""
                     UPDATE {schema_db}.parametro 
@@ -474,7 +483,16 @@ def create_variavel_global(token, url_sid, nome, id_politica, parametro_id):
                 )
                 conn.commit()
 
-                print("Registro de Parâmetro atualizado com sucesso!",relevant_info["id"],)
+                cur.execute(
+                    f"""
+                        INSERT INTO {schema_db}.evento (status_code, sas_user_id, parametro_id)
+                        VALUES (%s, %s, %s)
+                        RETURNING id
+                    """, 
+                    (status_code, sas_user_id, parametro_id))
+
+                conn.commit()
+                print("Registro de Parâmetro atualizado com sucesso!",relevant_info["id"])
 
         except Exception as e:
                 conn.rollback()

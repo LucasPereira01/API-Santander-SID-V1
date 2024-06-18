@@ -120,6 +120,10 @@ def alter_parametro_id_base(parametro_id):
 def del_parametro_id_base(parametro_id):
     return delete_parametro(parametro_id)
 
+@app.route('/api/v1/front/parametros/<string:parametro_id>/status', methods=['POST'])
+def alter__status_parametro_base(parametro_id):
+    return atualizar_status(parametro_id)
+
 
 ## Variavel no banco
 @app.route('/api/v1/front/parametros/<string:id_parametros>/variaveis', methods=['POST'])

@@ -859,3 +859,45 @@ def create_dados(parametro_id):
     finally:
         cur.close()
         conn.close()
+
+
+def atualizar_status(parametro_id):
+    sas_user_id = request.headers.get('Sas-User-Id')
+    sas_user_name = request.headers.get('Sas-User-Name')
+    sas_user_email = request.headers.get('Sas-User-Email')
+
+    data = request.get_json()
+    status_code  =  data.get('status_code')
+    justificativa = data.get('justificativa') if data.get('justificativa') is not None else None
+
+    try:
+        if status_code is None:
+            return jsonify({"error": "O campo 'status_code' é obrigatório"}), 400
+
+        # Conectar ao banco de dados
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+                # 1. Criar um novo evento na tabela 'evento'
+        cur.execute(f"""
+                INSERT INTO {schema_db}.evento (justificativa, status_code, sas_user_id, sas_user_name, sas_user_email, parametro_id)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (justificativa, status_code, sas_user_id, sas_user_name, sas_user_email, parametro_id))
+        evento_id = cur.fetchone()[0]
+
+        cur.execute(f"""
+                UPDATE {schema_db}.parametro
+                SET status_code = '005'
+                WHERE id = %s
+        """, (parametro_id,))
+            
+        conn.commit()
+
+        cur.close()
+        conn.close()
+
+        return jsonify({"message": "Status atualizado com sucesso", "evento_id": evento_id}), 200
+
+    except (Exception) as error:
+            return jsonify({"error": f"Falha ao atualizar o status: {error}"}), 500
