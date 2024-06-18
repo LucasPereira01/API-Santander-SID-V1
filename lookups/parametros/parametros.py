@@ -7,27 +7,34 @@ import re
 
 # Parametros 
 def create_parametro():
+    sas_user_id = None
+    sas_user_name = None
+    sas_user_email = None
+
+    if 'Sas-User-Id' in request.headers:
+        sas_user_id = request.headers.get('Sas-User-Id')
+    if 'Sas-User-Name' in request.headers:
+        sas_user_name = request.headers.get('Sas-User-Name')
+    if 'Sas-User-Email' in request.headers:
+        sas_user_email = request.headers.get('Sas-User-Email')
+
     body = request.json
     nome = body.get("nome")
-    id_politica = body.get("id_politica")
-    descricao = body.get("description")
+    politica_id = body.get("politica_id")
+    descricao = body.get("descricao")
     modo = body.get("modo")
     data_hora_vigencia = body.get("data_hora_vigencia")
     versao = body.get("versao")
-    is_vigente = body.get("is_vigente")
-    sas_user_id = body.get("sas_user_id")
-    justificativa = body.get("justificativa")
-    status_code = body.get("status_code")
+
     parametro_id = str(uuid.uuid4())
-    
+    is_vigente = True
+    status_code = "001"
 
     # Validando os campos
-    if not isinstance(is_vigente, bool):
-        return jsonify({"error": "'is_vigente' deve ser um booleano", "campos_error": ["is_vigente"]}), 400
     if not nome:
         return jsonify({"error": "'nome' é obrigatório", "campos_error": ["nome"]}), 400
-    if not id_politica:
-        return jsonify({"error": "'id_politica' é obrigatório", "campos_error": ["id_politica"]}), 400
+    if not politica_id:
+        return jsonify({"error": "'politica_id' é obrigatório", "campos_error": ["politica_id"]}), 400
     if not sas_user_id:
         return jsonify({"error": "'sas_user_id' é obrigatório", "campos_error": ["sas_user_id"]}), 400
     if not versao:
@@ -49,14 +56,14 @@ def create_parametro():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT * FROM parametro WHERE nome = %s AND politica_id = %s",(nome, id_politica))
+        cur.execute("SELECT * FROM parametro WHERE nome = %s AND politica_id = %s",(nome, politica_id))
         existing_cluster = cur.fetchone()
 
         if existing_cluster:
             return jsonify({"error":"Nome do Parametro ja existe para esta Politica","campos_error":["nome"]}),400
 
         # Verificar se a política existe
-        cur.execute("SELECT * FROM politica WHERE id = %s", (id_politica,))
+        cur.execute("SELECT * FROM politica WHERE id = %s", (politica_id,))
         politica = cur.fetchone()
         if not politica:
             return jsonify({"error": "Política não encontrada"}), 400
@@ -64,20 +71,20 @@ def create_parametro():
         # Inserir o parâmetro
         cur.execute(
             """
-            INSERT INTO parametro (id, nome, descricao, modo, data_hora_vigencia, versao, is_vigente, status_code, politica_id, sas_user_id)
-            VALUES (%s,%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO parametro (id, nome, descricao, modo, data_hora_vigencia, versao, is_vigente, status_code, politica_id, sas_user_id, sas_user_name, sas_user_email)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            (parametro_id, nome, descricao, modo, data_hora_vigencia, versao, is_vigente, status_code, id_politica, sas_user_id)
+            (parametro_id, nome, descricao, modo, data_hora_vigencia, versao, is_vigente, status_code, politica_id, sas_user_id, sas_user_name, sas_user_email)
         )
         conn.commit()
 
         # Inserir o evento associado ao parâmetro
         cur.execute(
             """
-            INSERT INTO evento (justificativa, status_code, sas_user_id, parametro_id,created_at)
-            VALUES (%s, %s, %s, %s, NOW())
+            INSERT INTO evento (status_code, parametro_id, sas_user_id, sas_user_name, sas_user_email, created_at)
+            VALUES (%s, %s, %s, %s, %s, NOW())
             """,
-            (justificativa, status_code, sas_user_id, parametro_id)
+            (status_code, parametro_id, sas_user_id, sas_user_name, sas_user_email)
         )
         conn.commit()
 
@@ -259,22 +266,36 @@ def lista_parametros_data_table():
         cur.close()
         conn.close()
 
+
 def get_all_parametro():
-    conn = get_db_connection()
-    cur = conn.cursor()
     try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
         cur.execute(
             """
             SELECT 
-                p.id, p.nome, p.descricao, p.modo, p.data_hora_vigencia, p.versao, p.is_vigente, 
-                p.sas_domain_id, p.sas_content_id, p.created_at, p.updated_at, p.deleted_at, 
-                p.status_code, p.parametro_parent_id, p.politica_id, p.sas_user_id,
-                po.*,
-                c.*, 
-                s.*,
-                d.informacao, d.sas_key, d.sas_value,
-                COALESCE(c.sas_test_folder_id::text, null) as sas_test_folder_id,
-                COALESCE(c.sas_test_parent_uri, null) as sas_test_parent_uri
+                p.id AS parametro_id, p.nome AS parametro_nome, p.descricao AS parametro_descricao, 
+                p.modo AS parametro_modo, p.data_hora_vigencia, p.versao, p.is_vigente, 
+                p.sas_domain_id, p.sas_content_id, p.created_at AS parametro_created_at, 
+                p.updated_at AS parametro_updated_at, p.deleted_at, p.status_code, 
+                p.parametro_parent_id, p.politica_id, p.sas_user_id,
+                po.id AS politica_id, po.nome AS politica_nome, po.descricao AS politica_descricao,
+                po.is_ativo AS politica_is_ativo, po.sas_folder_id AS politica_sas_folder_id,
+                po.sas_parent_uri AS politica_sas_parent_uri, po.created_at AS politica_created_at,
+                po.updated_at AS politica_updated_at, po.sas_test_folder_id AS politica_sas_test_folder_id,
+                po.sas_test_parent_uri AS politica_sas_test_parent_uri,
+                c.id AS cluster_id, c.nome AS cluster_nome, c.descricao AS cluster_descricao,
+                c.is_ativo AS cluster_is_ativo, c.sas_folder_id AS cluster_sas_folder_id,
+                c.sas_parent_uri AS cluster_sas_parent_uri, c.created_at AS cluster_created_at,
+                c.updated_at AS cluster_updated_at, c.sas_test_folder_id AS cluster_sas_test_folder_id,
+                c.sas_test_parent_uri AS cluster_sas_test_parent_uri,
+                s.id AS segmento_id, s.nome AS segmento_nome, s.descricao AS segmento_descricao,
+                s.is_ativo AS segmento_is_ativo, s.sas_folder_id AS segmento_sas_folder_id,
+                s.sas_parent_uri AS segmento_sas_parent_uri, s.created_at AS segmento_created_at,
+                s.updated_at AS segmento_updated_at, s.sas_test_folder_id AS segmento_sas_test_folder_id,
+                s.sas_test_parent_uri AS segmento_sas_test_parent_uri,
+                d.informacao AS dado_informacao, d.sas_key AS dado_sas_key, d.sas_value AS dado_sas_value
             FROM public.parametro p
             JOIN politica po ON p.politica_id = po.id
             JOIN clusters c ON po.cluster_id = c.id
@@ -282,145 +303,256 @@ def get_all_parametro():
             LEFT JOIN dado d ON p.id = d.parametro_id
             """
         )
+
         parametros = cur.fetchall()
 
-    
         parametros_json = [
-                    {
-                        "id": row[0],
-                        "nome": row[1],
-                        "descricao": row[2],
-                        "modo": row[3],
-                        "data_hora_vigencia": row[4],
-                        "versao": row[5],
-                        "is_vigente": row[6],
-                        "sas_domain_id": row[7],
-                        "sas_content_id": row[8],
-                        "created_at": row[9],
-                        "updated_at": row[10],
-                        "deleted_at": row[11],
-                        "status_code": row[12],
-                        "parametro_parent_id": row[13],
-                        "politica_id": row[14],
-                        "sas_user_id": row[15],
-                        "politica": {    #  nome, descricao, is_ativo, sas_folder_id, sas_parent_uri, created_at, updated_at, sas_test_folder_id, sas_test_parent_uri
-                            "id": row[16],
-                            "nome": row[17],
-                            "descricao": row[18],
-                            "is_ativo": row[19],
-                            "sas_folder_id": row[20],
-                            "sas_parent_uri": row[21],
-                            "created_at": row[22],
-                            "updated_at": row[23],
-                            "cluster_id": row[24],
-                            "sas_test_folder_id": row[25],
-                            "sas_test_parent_uri": row[26],
-                            "cluster": {
-                                "id": row[27],
-                                "nome": row[28],
-                                "descricao": row[29],
-                                "is_ativo": row[30],
-                                "sas_folder_id": row[31],
-                                "sas_parent_uri": row[32],
-                                "created_at": row[33],
-                                "updated_at": row[34],
-                                "segmento_id": row[35],
-                                "sas_test_folder_id": row[36],
-                                "sas_test_parent_uri": row[37],
+            {
+                "id": row["parametro_id"],
+                "nome": row["parametro_nome"],
+                "descricao": row["parametro_descricao"],
+                "modo": row["parametro_modo"],
+                "data_hora_vigencia": row["data_hora_vigencia"].isoformat(),
+                "versao": row["versao"],
+                "is_vigente": row["is_vigente"],
+                "sas_domain_id": row["sas_domain_id"],
+                "sas_content_id": row["sas_content_id"],
+                "created_at": row["parametro_created_at"].isoformat(),
+                "updated_at": row["parametro_updated_at"],
+                "deleted_at": row["deleted_at"],
+                "status_code": row["status_code"],
+                "parametro_parent_id": row["parametro_parent_id"],
+                "politica_id": row["politica_id"],
+                "sas_user_id": row["sas_user_id"],
+                "politica": {
+                    "id": row["politica_id"],
+                    "nome": row["politica_nome"],
+                    "descricao": row["politica_descricao"],
+                    "is_ativo": row["politica_is_ativo"],
+                    "sas_folder_id": row["politica_sas_folder_id"],
+                    "sas_parent_uri": row["politica_sas_parent_uri"],
+                    "created_at": row["politica_created_at"].isoformat(),
+                    "updated_at": row["politica_updated_at"],
+                    "sas_test_folder_id": row["politica_sas_test_folder_id"],
+                    "sas_test_parent_uri": row["politica_sas_test_parent_uri"],
+                        "cluster": {
+                            "id": row["cluster_id"],
+                            "nome": row["cluster_nome"],
+                            "descricao": row["cluster_descricao"],
+                            "is_ativo": row["cluster_is_ativo"],
+                            "sas_folder_id": row["cluster_sas_folder_id"],
+                            "sas_parent_uri": row["cluster_sas_parent_uri"],
+                            "created_at": row["cluster_created_at"].isoformat(),
+                            "updated_at": row["cluster_updated_at"],
+                            "sas_test_folder_id": row["cluster_sas_test_folder_id"],
+                            "sas_test_parent_uri": row["cluster_sas_test_parent_uri"],
                                 "segmento": {
-                                    "id": row[38],
-                                    "nome": row[39],
-                                    "descricao": row[40],
-                                    "is_ativo": row[41],
-                                    "sas_folder_id": row[42],
-                                    "sas_parent_uri": row[43],
-                                    "created_at": row[44],
-                                    "updated_at": row[45],
-                                    "sas_test_folder_id": row[46],
-                                    "sas_test_parent_uri": row[47],
+                                    "id": row["segmento_id"],
+                                    "nome": row["segmento_nome"],
+                                    "descricao": row["segmento_descricao"],
+                                    "is_ativo": row["segmento_is_ativo"],
+                                    "sas_folder_id": row["segmento_sas_folder_id"],
+                                    "sas_parent_uri": row["segmento_sas_parent_uri"],
+                                    "created_at": row["segmento_created_at"].isoformat(),
+                                    "updated_at": row["segmento_updated_at"],
+                                    "sas_test_folder_id": row["segmento_sas_test_folder_id"],
+                                    "sas_test_parent_uri": row["segmento_sas_test_parent_uri"]
                                 }
-                            }
                         },
-                        "dado": {
-                            "informacao": row[48],
-                            "sas_key": row[49],
-                            "sas_value": row[50]
-                        }
-                    }
-                    for row in parametros
-                ]
+                },
+                
+                "dado": {
+                    "informacao": row["dado_informacao"],
+                    "sas_key": row["dado_sas_key"],
+                    "sas_value": row["dado_sas_value"]
+                }
+            }
+            for row in parametros
+        ]
 
         return parametros_json
-    except Exception as e:
-        print(f"Erro ao listar segmentos: {e}")
-        return []
-    finally:
-        cur.close()
-        conn.close()
 
+    except Exception as e:
+        print(f"Erro ao listar parâmetros: {e}")
+        return []
+
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
 
 
 def get_parametro_by_id(parametro_id):
-    conn = get_db_connection()
-    cur = conn.cursor()
+    conn = None
+    cur = None
 
     try:
+        conn = get_db_connection() 
+        cur = conn.cursor()  
+
+        # Consulta SQL para buscar todas as informações necessárias
         cur.execute(
             """
-            SELECT p.id, p.nome, p.descricao, p.modo, p.data_hora_vigencia, p.versao, p.is_vigente, 
-                   p.sas_domain_id, p.sas_content_id, p.created_at, p.updated_at, p.deleted_at, 
-                   p.status_code, p.parametro_parent_id, p.politica_id, p.sas_user_id,
-                   po.id AS politica_id, po.nome AS politica_nome, po.descricao AS politica_descricao, po.is_ativo AS politica_ativo,
-                   c.id AS cluster_id, c.nome AS cluster_nome, c.descricao AS cluster_descricao, c.is_ativo AS cluster_ativo,
-                   s.id AS segmento_id, s.nome AS segmento_nome, s.descricao AS segmento_descricao, s.is_ativo AS segmento_ativo
+            SELECT 
+                p.id AS parametro_id, p.nome AS parametro_nome, p.descricao AS parametro_descricao,
+                p.modo AS parametro_modo, p.data_hora_vigencia, p.versao, p.is_vigente, 
+                p.sas_domain_id, p.sas_content_id, p.created_at AS parametro_created_at,
+                p.updated_at AS parametro_updated_at, p.deleted_at, p.status_code,
+                p.parametro_parent_id, p.politica_id, p.sas_user_id, p.sas_user_name, p.sas_user_email,
+                po.id AS politica_id, po.nome AS politica_nome, po.descricao AS politica_descricao,
+                po.is_ativo AS politica_is_ativo, po.sas_folder_id AS politica_sas_folder_id,
+                po.sas_parent_uri AS politica_sas_parent_uri, po.sas_test_folder_id AS politica_sas_test_folder_id,
+                po.sas_test_parent_uri AS politica_sas_test_parent_uri,
+                c.id AS cluster_id, c.nome AS cluster_nome, c.descricao AS cluster_descricao,
+                c.is_ativo AS cluster_is_ativo, c.sas_folder_id AS cluster_sas_folder_id,
+                c.sas_parent_uri AS cluster_sas_parent_uri, c.sas_test_folder_id AS cluster_sas_test_folder_id,
+                c.sas_test_parent_uri AS cluster_sas_test_parent_uri,
+                s.id AS segmento_id, s.nome AS segmento_nome, s.descricao AS segmento_descricao,
+                s.is_ativo AS segmento_is_ativo, s.sas_folder_id AS segmento_sas_folder_id,
+                s.sas_parent_uri AS segmento_sas_parent_uri, s.sas_test_folder_id AS segmento_sas_test_folder_id,
+                s.sas_test_parent_uri AS segmento_sas_test_parent_uri,
+                v.id AS variavel_id, v.nome AS variavel_nome, v.descricao AS variavel_descricao,
+                v.tipo AS variavel_tipo, v.is_chave AS variavel_is_chave, v.tamanho AS variavel_tamanho,
+                v.qtd_casas_decimais AS variavel_qtd_casas_decimais,
+                vl.id AS variavel_lista_id, vl.nome AS variavel_lista_nome,
+                vl.is_visivel AS variavel_lista_is_visivel, vl.variavel_id AS variavel_lista_variavel_id,
+                dado.id AS dado_id, dado.informacao AS dado_informacao,
+                dado.sas_key AS dado_sas_key, dado.sas_value AS dado_sas_value
             FROM public.parametro p
             JOIN politica po ON p.politica_id = po.id
             JOIN clusters c ON po.cluster_id = c.id
             JOIN segmento s ON c.segmento_id = s.id
+            LEFT JOIN public.variavel v ON p.id = v.parametro_id
+            LEFT JOIN public.variavel_lista vl ON v.id = vl.variavel_id
+            LEFT JOIN public.dado dado ON p.id = dado.parametro_id
             WHERE p.id = %s
-            """
-        , (parametro_id,))
-        parametro = cur.fetchone()
+            """,
+            (parametro_id,)
+        )
 
-        if not parametro:
+        rows = cur.fetchall()
+
+        cur.execute(
+            """
+            SELECT id, justificativa, created_at, status_code, file_id, sas_user_id, parametro_id, sas_user_name, sas_user_email
+            FROM public.evento
+            WHERE parametro_id = %s
+            """,
+            (parametro_id,)
+        )
+        rows2 = cur.fetchall()
+
+        if not rows:
             return jsonify({"error": "Parametro não encontrado"}), 404
 
-        parametro_json ={
-            "id": parametro[0],
-            "nome": parametro[1],
-            "descricao": parametro[2],
-            "modo": parametro[3],
-            "data_hora_vigencia": parametro[4],
-            "versao": parametro[5],
-            "is_vigente": parametro[6],
-            "sas_domain_id": parametro[7],
-            "sas_content_id": parametro[8],
-            "created_at": parametro[9],
-            "updated_at": parametro[10],
-            "deleted_at": parametro[11],
-            "status_code": parametro[12],
-            "parametro_parent_id": parametro[13],
-            "politica_id": parametro[14],
-            "sas_user_id": parametro[15],
+        # Construindo o JSON de retorno
+        parametro_json = {
+            "id": rows[0]["parametro_id"],
+            "nome": rows[0]["parametro_nome"],
+            "descricao": rows[0]["parametro_descricao"],
+            "modo": rows[0]["parametro_modo"],
+            "data_hora_vigencia": rows[0]["data_hora_vigencia"].isoformat(),
+            "versao": rows[0]["versao"],
+            "is_vigente": rows[0]["is_vigente"],
+            "sas_domain_id": rows[0]["sas_domain_id"],
+            "sas_content_id": rows[0]["sas_content_id"],
+            "status_code": rows[0]["status_code"],
+            "parametro_parent_id": rows[0]["parametro_parent_id"],
+            "politica_id": rows[0]["politica_id"],
+            "sas_user_id": rows[0]["sas_user_id"],
+            "sas_user_name": rows[0]["sas_user_name"],
+            "sas_user_email": rows[0]["sas_user_email"],
             "politica": {
-                "id": parametro[16],
-                "nome": parametro[17],
-                "descricao": parametro[18],
-                "is_ativo": parametro[19],
+                "id": rows[0]["politica_id"],
+                "nome": rows[0]["politica_nome"],
+                "descricao": rows[0]["politica_descricao"],
+                "is_ativo": rows[0]["politica_is_ativo"],
+                "sas_folder_id": rows[0]["politica_sas_folder_id"],
+                "sas_parent_uri": rows[0]["politica_sas_parent_uri"],
+                "sas_test_folder_id": rows[0]["politica_sas_test_folder_id"],
+                "sas_test_parent_uri": rows[0]["politica_sas_test_parent_uri"],
                 "cluster": {
-                    "id": parametro[20],
-                    "nome": parametro[21],
-                    "descricao": parametro[22],
-                    "is_ativo": parametro[23],
+                    "id": rows[0]["cluster_id"],
+                    "nome": rows[0]["cluster_nome"],
+                    "descricao": rows[0]["cluster_descricao"],
+                    "is_ativo": rows[0]["cluster_is_ativo"],
+                    "sas_folder_id": rows[0]["cluster_sas_folder_id"],
+                    "sas_parent_uri": rows[0]["cluster_sas_parent_uri"],
+                    "sas_test_folder_id": rows[0]["cluster_sas_test_folder_id"],
+                    "sas_test_parent_uri": rows[0]["cluster_sas_test_parent_uri"],
                     "segmento": {
-                        "id": parametro[24],
-                        "nome": parametro[25],
-                        "descricao": parametro[26],
-                        "segmento_ativo": parametro[27]
-                    }
-                }
-            }
+                        "id": rows[0]["segmento_id"],
+                        "nome": rows[0]["segmento_nome"],
+                        "descricao": rows[0]["segmento_descricao"],
+                        "is_ativo": rows[0]["segmento_is_ativo"],
+                        "sas_folder_id": rows[0]["segmento_sas_folder_id"],
+                        "sas_parent_uri": rows[0]["segmento_sas_parent_uri"],
+                        "sas_test_folder_id": rows[0]["segmento_sas_test_folder_id"],
+                        "sas_test_parent_uri": rows[0]["segmento_sas_test_parent_uri"],
+                    },
+                },
+            },
+            "variaveis": [],
+            "dados": [],
+            "eventos": []
         }
+
+        # Montando a lista de variáveis e suas listas associadas
+        variaveis = {}
+        for row in rows:
+            variavel_id = row["variavel_id"]
+            if variavel_id:
+                if variavel_id not in variaveis:
+                    variaveis[variavel_id] = {
+                        "id": row["variavel_id"],
+                        "nome": row["variavel_nome"],
+                        "descricao": row["variavel_descricao"],
+                        "tipo": row["variavel_tipo"],
+                        "is_chave": row["variavel_is_chave"],
+                        "tamanho": row["variavel_tamanho"],
+                        "qtd_casas_decimais": row["variavel_qtd_casas_decimais"],
+                        "variaveis_lista": []
+                    }
+            else:
+                parametro_json["variaveis"] = []
+
+            if row["variavel_lista_id"]:
+                variaveis[variavel_id]["variaveis_lista"].append({
+                    "id": row["variavel_lista_id"],
+                    "nome": row["variavel_lista_nome"],
+                    "is_visivel": row["variavel_lista_is_visivel"],
+                    "variavel_id": row["variavel_lista_variavel_id"]
+                })
+        parametro_json["variaveis"] = list(variaveis.values())
+
+        # Montando a lista de dados associados ao parâmetro
+        for row in rows:
+            if row["dado_id"]:  # Certifique-se de que o dado existe
+                parametro_json["dados"].append({
+                    "id": row["dado_id"],
+                    "informacao": row["dado_informacao"],
+                    "sas_key": row["dado_sas_key"],
+                    "sas_value": row["dado_sas_value"]
+                })
+
+        # Montando a lista de evento associados ao parâmetro
+        for evento in rows2:
+            if evento['id']:
+                evento_dict = {
+                    "id": evento[0],
+                    "justificativa": evento[1],
+                    "created_at": evento[2].isoformat(),
+                    "status_code": evento[3],
+                    "file_id": evento[4],
+                    "sas_user_id": evento[5],
+                    "parametro_id": evento[6],
+                    "sas_user_name": evento[7],
+                    "sas_user_email": evento[8]
+                }
+                parametro_json["eventos"].append(evento_dict)
+            else:
+                parametro_json["eventos"] = []
 
         return jsonify(parametro_json), 200
 
@@ -428,13 +560,17 @@ def get_parametro_by_id(parametro_id):
         return jsonify({"error": str(e)}), 500
 
     finally:
-        cur.close()
-        conn.close()
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
 
 def update_parametro(parametro_id):
     data = request.json
     conn = get_db_connection()
     cur = conn.cursor()
+    sas_user_id = request.headers.get('sas_user_id')
 
     try:    
         # Verificar se o parâmetro existe
@@ -450,30 +586,39 @@ def update_parametro(parametro_id):
         modo = data.get("modo")
         data_hora_vigencia = data.get("data_hora_vigencia")
         versao = data.get("versao")
-        is_vigente = data.get("is_vigente")
         sas_domain_id = data.get("sas_domain_id")
         sas_content_id = data.get("sas_content_id")
-        created_at = data.get("created_at")
-        updated_at = data.get("updated_at")
-        deleted_at = data.get("deleted_at")
-        status_code = data.get("status_code")
         parametro_parent_id = data.get("parametro_parent_id")
         politica_id = data.get("politica_id")
-        sas_user_id = data.get("sas_user_id")
 
         # Atualizar o parâmetro no banco de dados
         cur.execute("""
             UPDATE public.parametro
-            SET nome = %s, descricao = %s, modo = %s, data_hora_vigencia = %s, versao = %s, is_vigente = %s,
-                sas_domain_id = %s, sas_content_id = %s, created_at = %s, updated_at = %s, deleted_at = %s,
-                status_code = %s, parametro_parent_id = %s, politica_id = %s, sas_user_id = %s
+            SET nome = %s, descricao = %s, modo = %s, data_hora_vigencia = %s, versao = %s,
+                sas_domain_id = %s, sas_content_id = %s, updated_at = NOW(), parametro_parent_id = %s, politica_id = %s, sas_user_id = %s
             WHERE id = %s
-        """, (nome, descricao, modo, data_hora_vigencia, versao, is_vigente, sas_domain_id, sas_content_id,
-              created_at, updated_at, deleted_at, status_code, parametro_parent_id, politica_id, sas_user_id,
-              parametro_id))
+        """, (nome, descricao, modo, data_hora_vigencia, versao, sas_domain_id, sas_content_id,
+             parametro_parent_id, politica_id, sas_user_id, parametro_id))
 
         conn.commit()
 
+        cur.execute("""
+                DELETE FROM dado
+                WHERE parametro_id = %s
+                """, (parametro_id,))
+        
+        cur.execute("""
+                DELETE FROM variavel_lista
+                WHERE variavel_id  IN (SELECT id FROM variavel WHERE parametro_id = %s)
+                """, (parametro_id,))
+        
+        cur.execute("""
+                DELETE  FROM variavel
+                WHERE parametro_id = %s
+                """, (parametro_id,))
+            
+        conn.commit()
+        
         return jsonify({"message": "Parametro atualizado com sucesso"}), 200
 
     except Exception as e:
@@ -485,7 +630,45 @@ def update_parametro(parametro_id):
         conn.close()
 
 def delete_parametro(parametro_id):
-    ...
+    sas_user_id = request.headers.get('sas_user_id')
+    sas_user_name = request.headers.get('sas_user_name')
+    sas_user_email = request.headers.get('sas_user_email')
+
+    if not sas_user_id:
+        return jsonify({"error": "Não foi possível determinar o usuário que está realizando a ação"}), 400
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Atualizar o registro na tabela parametro
+        cur.execute("""
+            UPDATE public.parametro
+            SET status_code = '003',
+                updated_at = NOW(),
+                deleted_at = NOW()
+            WHERE id = %s
+        """, (parametro_id,))
+        conn.commit()
+        
+        # Inserir um novo registro na tabela evento
+        cur.execute("""
+            INSERT INTO public.evento (created_at, status_code, sas_user_id, parametro_id, sas_user_name, sas_user_email)
+            VALUES (NOW(), '003', %s, %s, %s, %s)
+        """, (sas_user_id, parametro_id, sas_user_name, sas_user_email))
+        conn.commit()
+        
+        # Retornar uma resposta JSON indicando sucesso
+        return jsonify({"message": "Registro deletado com sucesso"}), 200
+    
+    except Exception as e:
+        conn.rollback()
+        print(f"Erro ao deletar parâmetro: {e}")
+        return jsonify({"error": "Erro ao deletar parâmetro"}), 500
+    
+    finally:
+        cur.close()
+        conn.close()
 
 
 # Variaveis
@@ -494,18 +677,21 @@ def create_variaveis(parametro_id):
     conn = get_db_connection()
     cur = conn.cursor()
 
+    print("body",body)
     try:
         variaveis_to_insert = []
         listas_to_insert = []
 
         for value in body:
-            variavel_lista = value.get("variavel_lista")
+            variaveis_lista = value.get("variaveis_lista")
             nome = value.get("nome")
             descricao = value.get("descricao")
             tipo = value.get("tipo")
             is_chave = value.get("is_chave")
             tamanho = value.get("tamanho")
             qtd_casas_decimais = value.get("qtd_casas_decimais")
+
+            print("value",value)
 
             # Validando os campos
             if not isinstance(is_chave, bool):
@@ -526,13 +712,25 @@ def create_variaveis(parametro_id):
             if tipo not in ["LISTA", "DECIMAL", "TEXTO", "NUMERICO"]:
                 return jsonify({"error": "'tipo' é obrigatório e deve ser um desses valores (LISTA, DECIMAL, TEXTO, NUMERICO)", "campos_error": ["tipo"]}), 400
             
+
+            cur.execute("""
+                DELETE FROM variavel_lista
+                WHERE variavel_id  IN (SELECT id FROM variavel WHERE parametro_id = %s)
+                """, (parametro_id,))
+        
+            cur.execute("""
+                DELETE  FROM variavel
+                WHERE parametro_id = %s
+                """, (parametro_id,))
+            
             # Adicionando informações à lista temporária
-            variaveis_to_insert.append((nome, descricao, tipo, is_chave, tamanho, qtd_casas_decimais, parametro_id, variavel_lista))
+            variaveis_to_insert.append((nome, descricao, tipo, is_chave, tamanho, qtd_casas_decimais, parametro_id, variaveis_lista))
 
         # Inserindo variáveis na tabela temporária
         for var_info in variaveis_to_insert:
-            nome, descricao, tipo, is_chave, tamanho, qtd_casas_decimais, parametro_id, variavel_lista = var_info
+            nome, descricao, tipo, is_chave, tamanho, qtd_casas_decimais, parametro_id, variaveis_lista = var_info
             var_id = str(uuid.uuid4())
+
 
             # Verifica se o nome da variável já existe
             cur.execute("SELECT 1 FROM variavel WHERE nome = %s AND parametro_id = %s", (nome, parametro_id))
@@ -540,6 +738,7 @@ def create_variaveis(parametro_id):
 
             if existing_variable:
                 return jsonify({"error": "Nome da variável já existe para este parâmetro","campos_error": ["nome_variavel"]}), 400
+            
             cur.execute(
                 """
                 INSERT INTO variavel (id, nome, descricao, tipo, is_chave, tamanho, qtd_casas_decimais, parametro_id)
@@ -548,11 +747,18 @@ def create_variaveis(parametro_id):
                 (var_id, nome, descricao, tipo, is_chave, tamanho, qtd_casas_decimais, parametro_id)
             )
 
+            cur.execute(
+                """
+                DELETE FROM dado
+                WHERE parametro_id = %s
+                """,
+                (parametro_id,))
+
             # Se o tipo for LISTA e houver variáveis de lista, adicione à lista temporária
-            if tipo == "LISTA" and variavel_lista and len(variavel_lista) > 0:
+            if tipo == "LISTA" and variaveis_lista and len(variaveis_lista) > 0:
                 existing_list_names = set()  # Conjunto para armazenar nomes de lista existentes
 
-                for lista_info in variavel_lista:
+                for lista_info in variaveis_lista:
                     lista_nome = lista_info['nome']
                     is_visivel = lista_info['is_visivel']
 
@@ -589,43 +795,47 @@ def create_variaveis(parametro_id):
 
 
 def create_dados(parametro_id):
-    body = request.json
+    body = request.json  # Recebe o JSON do corpo da requisição
+
+    # Verifica se o corpo da requisição é uma lista
+    if not isinstance(body, list):
+        return jsonify({"error": "Corpo da requisição deve ser uma lista de objetos"}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
 
     try:
         for value in body:
-            informacao = value.get("informacao")
+            informacao = json.dumps(value.get("informacao"))  # Serializa o dicionário para JSON
             sas_key = value.get("sas_key")
             sas_value = value.get("sas_value")
-            
-
-
-            # Verificar se a informacao é um JSON válido
-            try:
-                informacao_json = json.loads(informacao)
-            except json.JSONDecodeError:
-                return jsonify({"error": "'informacao' deve ser um JSON válido", "campos_error": ["informacao"]}), 400
+            sas_type = value.get('sas_type')
 
             # Validando os campos
             if not informacao:
                 return jsonify({"error": "'informacao' é obrigatório", "campos_error": ["informacao"]}), 400
             if not sas_key:
-                return jsonify({"error": "'descricao' é obrigatório", "campos_error": ["descricao"]}), 400
+                sas_key = ''
             if not sas_value:
-                return jsonify({"error": "'tamanho' é obrigatório", "campos_error": ["tamanho"]}), 400
+                return jsonify({"error": "'sas_value' é obrigatório", "campos_error": ["sas_value"]}), 400
             
-            # Inserindo na tabela 'variavel'
+            cur.execute(
+            """
+                DELETE FROM dado
+                WHERE parametro_id = %s
+            """, (parametro_id,))
+            
+            # Inserindo na tabela 'dado'
             cur.execute(
                 """
-                INSERT INTO dado (informacao, sas_key, sas_value, parametro_id,created_at)
-                VALUES (%s,%s, %s, %s, NOW())
+                INSERT INTO dado (informacao, sas_key, sas_value, parametro_id, created_at, sas_type)
+                VALUES (%s, %s, %s, %s, NOW(), %s)
                 """,
-                (informacao, sas_key, sas_value, parametro_id)
+                (informacao, sas_key, sas_value, parametro_id, sas_type)
             )
             conn.commit()
-        return jsonify({"message": "Variaveis criadas com sucesso"}), 200
+
+        return jsonify({"message": "Dados criados com sucesso"}), 200
 
     except Exception as e:
         conn.rollback()

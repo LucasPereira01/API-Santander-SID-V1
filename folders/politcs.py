@@ -320,11 +320,11 @@ def busca_all_politica():
                 "cluster": {
                     "id": politica[10],
                     "nome": politica[11],
-                    "cluster_ativo": politica[12],
+                    "is_ativo": politica[12],
                     "segmento": {
                         "id": politica[13],
                         "nome": politica[14],
-                        "segmento_ativo": politica[15]
+                        "is_ativo": politica[15]
                     }
                 }
             })
@@ -377,11 +377,11 @@ def list_politica_id(politica_id):
                 "cluster": {
                     "id": politica[8],
                     "nome": politica[9],
-                    "cluster_ativo": politica[10],
+                    "is_ativo": politica[10],
                     "segmento": {
                         "id": politica[11],
                         "nome": politica[12],
-                        "segmento_ativo": politica[13]
+                        "is_ativo": politica[13]
                     }
                 }
             }

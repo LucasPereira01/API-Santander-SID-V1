@@ -58,7 +58,7 @@ def busca_all_cluster():
                 "segmento": {
                     "id": cluster[10],
                     "nome": cluster[11],
-                    "segmento_ativo": cluster[12]
+                    "is_ativo": cluster[12]
                 }
             })
 
