@@ -7,7 +7,6 @@ import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from dotenv import load_dotenv
 import re
-import requests
 from dotenv import load_dotenv
 import os
 
@@ -124,120 +123,6 @@ def buscar_cluster_id(cluster_id):
             cur.close()
         if conn:
             conn.close()
-
-
-
-""" def criar_cluster(token):
-        data = request.get_json()
-        nome = data.get('nome')
-        segmento_id = data.get('segmento_id')
-        descricao = data.get('descricao', '')
-        is_ativo = data.get('is_ativo', True)
-
-            # Verificar se 'is_ativo' está presente no JSON e é um valor booleano
-        if "is_ativo" not in data or not isinstance(data["is_ativo"], bool):
-            return jsonify({"error": "'is_ativo' é obrigatório e deve ser um booleano","campos_error":["is_ativo"]}), 400
-
-        if not nome:
-            return jsonify({"error": "'nome' é obrigatório","campos_error":["nome"]}), 400
-    
-        elif not descricao:
-            return jsonify({"error": "'descricao' é obrigatório ","campos_error":["descricao"]}), 400
-        # Verificar se 'nome' e 'descricao' estão presentes e são válidos
-
-        elif not segmento_id:
-            return jsonify({"error": "'segmento_id' é obrigatório ","campos_error":["segmento_id"]}), 400
-        # Verificar se 'nome' e 'descricao' estão presentes e são válidos
-
-        elif len(descricao) > 350:
-            return jsonify({"error": "Descrição deve ter no máximo 350 caracteres","campos_error":["descricao"]}), 400
-
-        
-        # Validação do campo 'nome' usando expressão regular
-        name_regex = re.compile(r"^[A-Za-z0-9_]+$")
-        if not name_regex.match(nome):
-             return jsonify({"error": "Nome deve conter apenas letras, números ou underscores","campos_error":["nome"]}), 400
-
-        conn = get_db_connection()
-        cur = conn.cursor()
-
-        cur.execute(f"SELECT * FROM  {schema_db}.clusters WHERE nome = %s AND segmento_id = %s",(nome,segmento_id))
-        existing_cluster = cur.fetchone()
-
-        if existing_cluster:
-            return jsonify({"error":"Nome do cluster ja existe para este segmento","campos_error":["nome"]}),400
-        
-        cur.execute(f"SELECT * FROM  {schema_db}.segmento WHERE id = %s",(segmento_id,))
-        segmento = cur.fetchone()
-        if not segmento:
-            return jsonify({"error":"Segmento nao encontrado"}),400
-        
-
-        sas_parent_uri_seg = segmento[5]
-        print('Path segmento:')
-        print(sas_parent_uri_seg)
-
-        if 'Authorization' in request.headers:
-            token = request.headers.get('Authorization').split('Bearer ')[1]
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.sas.content.folder+json, application/json"
-        }
-
-        cluster_id = str(uuid.uuid4())
-        payload = {
-            "name": nome,
-            "description": descricao,
-            "type": "folder"
-        }
-        try:
-
-            url = f"{url_path_sid}/folders/folders"
-
-            path_segmentos = {"parentFolderUri": sas_parent_uri_seg}  # Define o path_segmentos se a pasta raiz foi encontrada
-            
-            response = requests.post(url, json=payload, headers=headers, params=path_segmentos, verify=False)
-
-            if response.status_code != 201:
-                cur.execute(f"SELECT * FROM  {schema_db}.clusters WHERE nome = %s",(nome,))
-                existing_cluster = cur.fetchone()
-                if existing_cluster:
-                    return jsonify({"error": "O Cluster ja existe","campos_error":["nome"]}), 400
-                error_type = response.json()
-                raise Exception("Falha ao criar o Cluster no SAS Intelligence Design ", error_type["message"])
-        
-            response.raise_for_status()
-
-            response_data = response.json()
-            
-            # Obtém os dados relevantes da resposta
-            sas_folder_id = response_data.get("id")
-            sas_parent_uri = response_data.get("links", [{}])[0].get("uri")
-
-            # Verifica se os dados necessários foram obtidos
-            if not sas_folder_id or not sas_parent_uri:
-                return jsonify({"error": "'parentFolderUri' or 'id' not found in response data"}), 500
-            
-            # Insere os dados do cluster no banco de dados
-            cur.execute(f"""
-                #INSERT INTO clusters (id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri, segmento_id) 
-                #VALUES (%s, %s, %s, %s, %s, %s, %s)
-                #RETURNING id
-""", (cluster_id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri, segmento_id))
-            cluster_id = cur.fetchone()[0]
-
-            conn.commit()
-            return jsonify({"message": "Cluster Criado com Sucesso", "id": cluster_id}), 201
-        except Exception as e:
-            conn.rollback()
-            return jsonify({"error": str(e)}), 500
-        finally:
-            cur.close()
-            conn.close() """
-
-
-
 
 
 def criar_cluster_data_base():
@@ -413,6 +298,3 @@ def delete_cluster(cluster_id):
     finally:
         cur.close()
         conn.close()
-
-
-

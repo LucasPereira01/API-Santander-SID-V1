@@ -3,7 +3,6 @@ import requests
 from dotenv import load_dotenv
 import os 
 import time
-import datetime
 from lookups.parametros.parametros import get_all_parametro
 
 # Carrega as variáveis de ambiente do arquivo .env

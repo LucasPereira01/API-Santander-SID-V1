@@ -66,35 +66,6 @@ def get_buscasas():
 def get_login():
     return login()
 
-""" @app.route('/api/v1/domains', methods=['GET'])
-def get_domains_route():
-    return get_domains(token)
-
-
-@app.route('/api/v1/contents', methods=['GET'])
-def get_contents():
-    return get_content(token)
-
-
-@app.route('/api/v1/current_contents', methods=['GET'])
-def get_current_contents_route():
-    return get_current_contents(token)
-
-
-@app.route('/api/v1/create_domains', methods=['POST'])
-def create_domains_route():
-    return create_domains(token) """
-
-
-""" @app.route('/api/v1/domains/<string:id_politica>', methods=['POST'])
-def create_domains_entries_route(id_politica):
-    return create_domains_and_entries(token,id_politica)
-
-
-@app.route('/api/v1/update_entries', methods=['PATCH'])
-def update_entries_route():
-    return update_entries(token)
- """
 ## Parametros no banco
 @app.route('/api/v1/front/parametros/datatable', methods=['POST'])
 def lista_data_table():
