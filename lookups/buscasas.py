@@ -13,6 +13,7 @@ url_path_sid = os.getenv("URL_PATH_SID")
 url_path_sid_analytics = os.getenv("URL_PATH_ANALYTICS_SID")
 user_name_sid = os.getenv("USER_NAME_SID")
 password_sid = os.getenv("PASSWORD_SID")
+schema_db = os.getenv("SCHEMA_DB")
 
 
 # Função para ler o token de um arquivo
@@ -226,7 +227,7 @@ def create_domains(token):
     conn = get_db_connection()
     cur = conn.cursor()
 
-    cur.execute("SELECT * FROM politica WHERE id = %s",(id_politica,))
+    cur.execute(f"SELECT * FROM {schema_db}.politica WHERE id = %s",(id_politica,))
     politica = cur.fetchone()
     if not politica:
         return jsonify({"error":"Politica nao encontrado"}),400
@@ -437,14 +438,14 @@ def create_parametro( id_politica):
     cur = conn.cursor()
 
     try:
-        cur.execute("SELECT * FROM politica WHERE id = %s", (id_politica,))
+        cur.execute(f"SELECT * FROM {schema_db}.politica WHERE id = %s", (id_politica,))
         politica = cur.fetchone()
         if not politica:
             return jsonify({"error": "Política não encontrada"}), 400
 
         cur.execute(
-                    """
-                        INSERT INTO parametro (nome, descricao, modo, data_hora_vigencia, versao, is_vigente, status_code, politica_id, sas_user_id)
+                    f"""
+                        INSERT INTO {schema_db}.parametro (nome, descricao, modo, data_hora_vigencia, versao, is_vigente, status_code, politica_id, sas_user_id)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """,
                         (name, descricao,modo,data_hora_vigencia,versao,is_vigente, status_code, id_politica, sas_user_id)
@@ -476,7 +477,7 @@ def create_domains_and_entries(token, id_politica):
     cur = conn.cursor()
 
     try:
-        cur.execute("SELECT * FROM politica WHERE id = %s", (id_politica,))
+        cur.execute(f"SELECT * FROM {schema_db}.politica WHERE id = %s", (id_politica,))
         politica = cur.fetchone()
         if not politica:
             return jsonify({"error": "Política não encontrada"}), 400
@@ -536,8 +537,8 @@ def create_domains_and_entries(token, id_politica):
                     entries_info = response_entries.json()
 
                     cur.execute(
-                        """
-                        INSERT INTO parametro (nome, descricao, modo, data_hora_vigencia, versao, is_vigente, sas_domain_id, sas_content_id, status_code, politica_id, sas_user_id)
+                        f"""
+                        INSERT INTO {schema_db}.parametro (nome, descricao, modo, data_hora_vigencia, versao, is_vigente, sas_domain_id, sas_content_id, status_code, politica_id, sas_user_id)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """,
                         (name, descricao,modo,data_hora_vigencia,versao,True, relevant_info["id"], entries_info["id"], status_code, id_politica, relevant_info["modifiedBy"])

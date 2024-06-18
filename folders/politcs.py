@@ -14,6 +14,7 @@ load_dotenv()
 # Acesso à variável de ambiente
 url_path_sid = os.getenv("URL_PATH_SID")
 URL_PATH_ANALYTICS_SID = os.getenv("URL_PATH_ANALYTICS_SID")
+schema_db = os.getenv("SCHEMA_DB")
 
 app = Flask(__name__)
 
@@ -55,13 +56,13 @@ app = Flask(__name__)
         conn = get_db_connection()
         cur = conn.cursor()
         
-        cur.execute("SELECT * FROM politica WHERE nome = %s AND cluster_id = %s",(nome,cluster_id))
+        cur.execute(f"SELECT * FROM politica WHERE nome = %s AND cluster_id = %s",(nome,cluster_id))
         existing_cluster = cur.fetchone()
 
         if existing_cluster:
             return jsonify({"error":"Nome do Politica ja existe para este Cluster","campos_error":["nome"]}),400
         
-        cur.execute("SELECT * FROM clusters WHERE id = %s",(cluster_id,))
+        cur.execute(f"SELECT * FROM clusters WHERE id = %s",(cluster_id,))
         cluster = cur.fetchone()
         if not cluster:
             return jsonify({"error":"Cluster nao encontrado"}),400
@@ -93,7 +94,7 @@ app = Flask(__name__)
             response = requests.post(url, json=payload, headers=headers, params=path_cluster, verify=False)
 
             if response.status_code != 201:
-                cur.execute("SELECT * FROM politica WHERE nome = %s",(nome,))
+                cur.execute(f"SELECT * FROM politica WHERE nome = %s",(nome,))
                 existing_cluster = cur.fetchone()
                 if existing_cluster:
                     return jsonify({"error": "A Politica ja existe","campos_error":["nome"]}), 400
@@ -115,7 +116,7 @@ app = Flask(__name__)
                 return jsonify({"error": "'parentFolderUri' or 'id' not found in response data"}), 500
             
             # Insere os dados do cluster no banco de dados
-            cur.execute("""
+            cur.execute(f"""
                 #INSERT INTO politica (id, nome, descricao, is_ativo, sas_folder_id, sas_parent_uri, cluster_id) 
                 #VALUES (%s, %s, %s, %s, %s, %s, %s)
                 #RETURNING id
@@ -171,13 +172,13 @@ def criar_politica_data_base():
         conn = get_db_connection()
         cur = conn.cursor()
         
-        cur.execute("SELECT * FROM politica WHERE nome = %s AND cluster_id = %s",(nome,cluster_id))
+        cur.execute(f"SELECT * FROM  {schema_db}.politica WHERE nome = %s AND cluster_id = %s",(nome,cluster_id))
         existing_cluster = cur.fetchone()
 
         if existing_cluster:
             return jsonify({"error":"Nome da Politica ja existe para este Cluster","campos_error":["nome"]}),400
         
-        cur.execute("SELECT * FROM clusters WHERE id = %s",(cluster_id,))
+        cur.execute(f"SELECT * FROM  {schema_db}.clusters WHERE id = %s",(cluster_id,))
         cluster = cur.fetchone()
         if not cluster:
             return jsonify({"error":"Cluster nao encontrado"}),400
@@ -186,8 +187,8 @@ def criar_politica_data_base():
 
         try:
             # Insere os dados do cluster no banco de dados
-            cur.execute("""
-                INSERT INTO politica (id, nome, descricao, is_ativo, cluster_id) 
+            cur.execute(f"""
+                INSERT INTO {schema_db}.politica (id, nome, descricao, is_ativo, cluster_id) 
                 VALUES (%s, %s, %s, %s, %s)
                 RETURNING id
             """, (politica_id, nome, descricao, is_ativo, cluster_id))
@@ -235,7 +236,7 @@ def edit_politica(politica_id):
 
     try:
         # verifica se exite o id na table
-        cur.execute("SELECT 1 FROM  politica WHERE id = %s",(politica_id,))
+        cur.execute(f"SELECT 1 FROM  {schema_db}.politica WHERE id = %s",(politica_id,))
         politica_existe = cur.fetchone()
 
         if not politica_existe:
@@ -244,7 +245,7 @@ def edit_politica(politica_id):
 
 
                 # Verifica se há alguma associação do cluster com políticas
-        cur.execute("SELECT politica_id FROM parametro WHERE politica_id = %s", (politica_id,))
+        cur.execute(f"SELECT politica_id FROM  {schema_db}.parametro WHERE politica_id = %s", (politica_id,))
         association = cur.fetchone()
         if association:
             has_association = True
@@ -253,22 +254,22 @@ def edit_politica(politica_id):
         if has_association and nome:
             return jsonify({"error": "O 'nome' não pode ser alterado, está associado a um Parametro", "campos_error": ["nome"]})
         
-        cur.execute("SELECT * FROM politica WHERE nome = %s AND cluster_id = %s",(nome,cluster_id))
+        cur.execute(f"SELECT * FROM  {schema_db}.politica WHERE nome = %s AND cluster_id = %s",(nome,cluster_id))
         existing_cluster = cur.fetchone()
 
         if existing_cluster:
             return jsonify({"error":"Nome da Politica ja existe para este Cluster","campos_error":["nome"]}),400
 
         if nome:
-            query = """
-                UPDATE politica
+            query = f"""
+                UPDATE {schema_db}.politica
                 SET nome = %s, descricao = %s, is_ativo = %s, updated_at = %s, cluster_id = %s
                 WHERE id = %s
             """
             params = (nome, descricao, is_ativo, updated_at, cluster_id, politica_id)
         else:
-            query = """
-                UPDATE politica
+            query = f"""
+                UPDATE {schema_db}.politica
                 SET descricao = %s, is_ativo = %s, updated_at = %s
                 WHERE id = %s
             """
@@ -294,12 +295,12 @@ def busca_all_politica():
         
 
         cur.execute(
-            """
+           f"""
                 SELECT p.id, p.nome, p.descricao, p.is_ativo, p.sas_folder_id, p.sas_parent_uri, p.sas_test_folder_id, p.sas_test_parent_uri, p.created_at, p.updated_at, p.cluster_id,
                 c.nome AS cluster_nome, c.is_ativo AS cluster_ativo, s.id ,s.nome AS segmento_name, s.is_ativo AS segmento_ativo
-                FROM politica p
-                JOIN clusters c ON p.cluster_id = c.id
-                JOIN segmento s ON c.segmento_id = s.id
+                FROM  {schema_db}.politica p
+                JOIN {schema_db}.clusters c ON p.cluster_id = c.id
+                JOIN {schema_db}.segmento s ON c.segmento_id = s.id
             """)
         politicas = cur.fetchall()
 
@@ -344,20 +345,20 @@ def list_politica_id(politica_id):
     cur = conn.cursor()
     has_association = False
     try:
-        cur.execute("SELECT politica_id FROM parametro WHERE politica_id = %s", (politica_id,))
+        cur.execute(f"SELECT politica_id FROM  {schema_db}.parametro WHERE politica_id = %s", (politica_id,))
         association = cur.fetchone()
         if association:
             has_association = True
 
 
-        cur.execute("""
+        cur.execute(f"""
             SELECT 
                 p.id, p.nome, p.descricao, p.is_ativo, p.sas_folder_id, p.sas_parent_uri, p.created_at, p.updated_at, 
                 c.id AS cluster_id, c.nome AS cluster_nome, c.is_ativo AS cluster_ativo, 
                 s.id AS segmento_id, s.nome AS segmento_nome, s.is_ativo AS segmento_ativo
-            FROM politica p
-            JOIN clusters c ON p.cluster_id = c.id
-            JOIN segmento s ON c.segmento_id = s.id
+            FROM  {schema_db}.politica p
+            JOIN {schema_db}.clusters c ON p.cluster_id = c.id
+            JOIN {schema_db}.segmento s ON c.segmento_id = s.id
             WHERE p.id = %s
         """, (politica_id,))
         politica = cur.fetchone()
@@ -402,20 +403,20 @@ def delete_politica(politica_id):
     cur = conn.cursor()
     try:
         # Verifica se a política existe
-        cur.execute("SELECT 1 FROM politica WHERE id = %s", (politica_id,))
+        cur.execute(f"SELECT 1 FROM  {schema_db}.politica WHERE id = %s", (politica_id,))
         politica_existe = cur.fetchone()
 
         if not politica_existe:
             return jsonify({"error": "Política não encontrada"}), 404
 
         # Verifica se a política está associada a algum parâmetro
-        cur.execute("SELECT politica_id FROM parametro WHERE politica_id = %s", (politica_id,))
+        cur.execute(f"SELECT politica_id FROM  {schema_db}.parametro WHERE politica_id = %s", (politica_id,))
         association = cur.fetchone()
 
         if association:
             return jsonify({"error": "Não é possível excluir a política pois está associada a um parâmetro", "campos_error": ["politica_associada"]}), 400
         else:
-            cur.execute("DELETE FROM politica WHERE id = %s", (politica_id,))
+            cur.execute(f"DELETE FROM  {schema_db}.politica WHERE id = %s", (politica_id,))
             conn.commit()
             return jsonify({"message": "Política excluída com sucesso"}), 200
     except Exception as e:

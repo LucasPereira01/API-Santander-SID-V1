@@ -3,7 +3,13 @@ from db import get_db_connection
 import uuid
 import json
 import re
+import os
+from dotenv import load_dotenv
 
+# Carrega as variáveis de ambiente do arquivo .env
+load_dotenv()
+
+schema_db = os.getenv("SCHEMA_DB")
 
 # Parametros 
 def create_parametro():
@@ -56,22 +62,22 @@ def create_parametro():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT * FROM parametro WHERE nome = %s AND politica_id = %s",(nome, politica_id))
+        cur.execute(f"SELECT * FROM  {schema_db}.parametro WHERE nome = %s AND politica_id = %s",(nome, politica_id))
         existing_cluster = cur.fetchone()
 
         if existing_cluster:
             return jsonify({"error":"Nome do Parametro ja existe para esta Politica","campos_error":["nome"]}),400
 
         # Verificar se a política existe
-        cur.execute("SELECT * FROM politica WHERE id = %s", (politica_id,))
+        cur.execute(f"SELECT * FROM  {schema_db}.politica WHERE id = %s", (politica_id,))
         politica = cur.fetchone()
         if not politica:
             return jsonify({"error": "Política não encontrada"}), 400
 
         # Inserir o parâmetro
         cur.execute(
-            """
-            INSERT INTO parametro (id, nome, descricao, modo, data_hora_vigencia, versao, is_vigente, status_code, politica_id, sas_user_id, sas_user_name, sas_user_email)
+            f"""
+            INSERT INTO {schema_db}.parametro (id, nome, descricao, modo, data_hora_vigencia, versao, is_vigente, status_code, politica_id, sas_user_id, sas_user_name, sas_user_email)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (parametro_id, nome, descricao, modo, data_hora_vigencia, versao, is_vigente, status_code, politica_id, sas_user_id, sas_user_name, sas_user_email)
@@ -80,8 +86,8 @@ def create_parametro():
 
         # Inserir o evento associado ao parâmetro
         cur.execute(
-            """
-            INSERT INTO evento (status_code, parametro_id, sas_user_id, sas_user_name, sas_user_email, created_at)
+            f"""
+            INSERT INTO {schema_db}.evento (status_code, parametro_id, sas_user_id, sas_user_name, sas_user_email, created_at)
             VALUES (%s, %s, %s, %s, %s, NOW())
             """,
             (status_code, parametro_id, sas_user_id, sas_user_name, sas_user_email)
@@ -113,30 +119,30 @@ def lista_parametros_data_table():
 
     try:
         # Construa a consulta SQL baseada nos parâmetros fornecidos para contar os registros
-        query_count = """
+        query_count = f"""
             SELECT 
                 COUNT(*)
-            FROM parametro p
-                JOIN parametro_status st ON p.status_code = st.code
-                JOIN politica po ON p.politica_id = po.id
-                JOIN clusters c ON po.cluster_id = c.id
-                JOIN segmento s ON c.segmento_id = s.id
+            FROM  {schema_db}.parametro p
+                JOIN {schema_db}.parametro_status st ON p.status_code = st.code
+                JOIN {schema_db}.politica po ON p.politica_id = po.id
+                JOIN {schema_db}.clusters c ON po.cluster_id = c.id
+                JOIN {schema_db}.segmento s ON c.segmento_id = s.id
             WHERE
                 p.deleted_at IS NULL AND p.is_vigente IS true
             """
         # Construa a consulta SQL baseada nos parâmetros fornecidos
-        query = """
+        query = f"""
             SELECT 
                 p.id, p.nome, p.descricao, p.modo, p.versao,
                 st.code as status_code, st.type as status_type, st.description as status_description,
                 po.id as politica_id, po.nome as politica_nome,
                 c.id as cluster_id, c.nome as cluster_nome,
                 s.id as segmento_id, s.nome as segmento_nome
-            FROM parametro p
-                JOIN parametro_status st ON p.status_code = st.code
-                JOIN politica po ON p.politica_id = po.id
-                JOIN clusters c ON po.cluster_id = c.id
-                JOIN segmento s ON c.segmento_id = s.id
+                FROM  {schema_db}.parametro p
+                JOIN {schema_db}.parametro_status st ON p.status_code = st.code
+                JOIN {schema_db}.politica po ON p.politica_id = po.id
+                JOIN {schema_db}.clusters c ON po.cluster_id = c.id
+                JOIN {schema_db}.segmento s ON c.segmento_id = s.id
             WHERE
                 p.deleted_at IS NULL AND p.is_vigente IS true
             """
@@ -273,7 +279,7 @@ def get_all_parametro():
         cur = conn.cursor()
 
         cur.execute(
-            """
+            f"""
             SELECT 
                 p.id AS parametro_id, p.nome AS parametro_nome, p.descricao AS parametro_descricao, 
                 p.modo AS parametro_modo, p.data_hora_vigencia, p.versao, p.is_vigente, 
@@ -296,11 +302,11 @@ def get_all_parametro():
                 s.updated_at AS segmento_updated_at, s.sas_test_folder_id AS segmento_sas_test_folder_id,
                 s.sas_test_parent_uri AS segmento_sas_test_parent_uri,
                 d.informacao AS dado_informacao, d.sas_key AS dado_sas_key, d.sas_value AS dado_sas_value
-            FROM public.parametro p
-            JOIN politica po ON p.politica_id = po.id
-            JOIN clusters c ON po.cluster_id = c.id
-            JOIN segmento s ON c.segmento_id = s.id
-            LEFT JOIN dado d ON p.id = d.parametro_id
+            FROM  {schema_db}.parametro p
+            JOIN  {schema_db}.politica po ON p.politica_id = po.id
+            JOIN  {schema_db}.clusters c ON po.cluster_id = c.id
+            JOIN  {schema_db}.segmento s ON c.segmento_id = s.id
+            LEFT JOIN {schema_db}.dado d ON p.id = d.parametro_id
             """
         )
 
@@ -390,7 +396,7 @@ def get_parametro_by_id(parametro_id):
 
         # Consulta SQL para buscar todas as informações necessárias
         cur.execute(
-            """
+            f"""
             SELECT 
                 p.id AS parametro_id, p.nome AS parametro_nome, p.descricao AS parametro_descricao,
                 p.modo AS parametro_modo, p.data_hora_vigencia, p.versao, p.is_vigente, 
@@ -416,13 +422,13 @@ def get_parametro_by_id(parametro_id):
                 vl.is_visivel AS variavel_lista_is_visivel, vl.variavel_id AS variavel_lista_variavel_id,
                 dado.id AS dado_id, dado.informacao AS dado_informacao,
                 dado.sas_key AS dado_sas_key, dado.sas_value AS dado_sas_value
-            FROM public.parametro p
-            JOIN politica po ON p.politica_id = po.id
-            JOIN clusters c ON po.cluster_id = c.id
-            JOIN segmento s ON c.segmento_id = s.id
-            LEFT JOIN public.variavel v ON p.id = v.parametro_id
-            LEFT JOIN public.variavel_lista vl ON v.id = vl.variavel_id
-            LEFT JOIN public.dado dado ON p.id = dado.parametro_id
+            FROM  {schema_db}.parametro p
+            JOIN  {schema_db}.politica po ON p.politica_id = po.id
+            JOIN  {schema_db}.clusters c ON po.cluster_id = c.id
+            JOIN  {schema_db}.segmento s ON c.segmento_id = s.id
+            LEFT JOIN {schema_db}.variavel v ON p.id = v.parametro_id
+            LEFT JOIN {schema_db}.variavel_lista vl ON v.id = vl.variavel_id
+            LEFT JOIN {schema_db}.dado dado ON p.id = dado.parametro_id
             WHERE p.id = %s
             """,
             (parametro_id,)
@@ -431,9 +437,9 @@ def get_parametro_by_id(parametro_id):
         rows = cur.fetchall()
 
         cur.execute(
-            """
+            f"""
             SELECT id, justificativa, created_at, status_code, file_id, sas_user_id, parametro_id, sas_user_name, sas_user_email
-            FROM public.evento
+            FROM  {schema_db}.evento
             WHERE parametro_id = %s
             """,
             (parametro_id,)
@@ -441,9 +447,9 @@ def get_parametro_by_id(parametro_id):
         rows2 = cur.fetchall()
         
         cur.execute( #id, informacao, sas_key, sas_value, created_at, deleted_at, parametro_id, sas_type
-            """
+            f"""
             SELECT id, informacao, sas_key, sas_value, created_at, deleted_at, parametro_id, sas_type
-            FROM public.dado
+            FROM  {schema_db}.dado
             WHERE parametro_id = %s
             """,
             (parametro_id,)
@@ -581,7 +587,7 @@ def update_parametro(parametro_id):
 
     try:    
         # Verificar se o parâmetro existe
-        cur.execute("SELECT * FROM public.parametro WHERE id = %s", (parametro_id,))
+        cur.execute(f"SELECT * FROM  {schema_db}.parametro WHERE id = %s", (parametro_id,))
         existing_parametro = cur.fetchone()
 
         if not existing_parametro:
@@ -599,8 +605,8 @@ def update_parametro(parametro_id):
         politica_id = data.get("politica_id")
 
         # Atualizar o parâmetro no banco de dados
-        cur.execute("""
-            UPDATE public.parametro
+        cur.execute(f"""
+            UPDATE {schema_db}.parametro
             SET nome = %s, descricao = %s, modo = %s, data_hora_vigencia = %s, versao = %s,
                 sas_domain_id = %s, sas_content_id = %s, updated_at = NOW(), parametro_parent_id = %s, politica_id = %s, sas_user_id = %s
             WHERE id = %s
@@ -609,18 +615,18 @@ def update_parametro(parametro_id):
 
         conn.commit()
 
-        cur.execute("""
-                DELETE FROM dado
+        cur.execute(f"""
+                DELETE FROM  {schema_db}.dado
                 WHERE parametro_id = %s
                 """, (parametro_id,))
         
-        cur.execute("""
-                DELETE FROM variavel_lista
-                WHERE variavel_id  IN (SELECT id FROM variavel WHERE parametro_id = %s)
+        cur.execute(f"""
+                DELETE FROM  {schema_db}.variavel_lista
+                WHERE variavel_id  IN (SELECT id FROM  {schema_db}.variavel WHERE parametro_id = %s)
                 """, (parametro_id,))
         
-        cur.execute("""
-                DELETE  FROM variavel
+        cur.execute(f"""
+                DELETE  FROM  {schema_db}.variavel
                 WHERE parametro_id = %s
                 """, (parametro_id,))
             
@@ -649,8 +655,8 @@ def delete_parametro(parametro_id):
     
     try:
         # Atualizar o registro na tabela parametro
-        cur.execute("""
-            UPDATE public.parametro
+        cur.execute(f"""
+            UPDATE {schema_db}.parametro
             SET status_code = '003',
                 updated_at = NOW(),
                 deleted_at = NOW()
@@ -659,8 +665,8 @@ def delete_parametro(parametro_id):
         conn.commit()
         
         # Inserir um novo registro na tabela evento
-        cur.execute("""
-            INSERT INTO public.evento (created_at, status_code, sas_user_id, parametro_id, sas_user_name, sas_user_email)
+        cur.execute(f"""
+            INSERT INTO {schema_db}.evento (created_at, status_code, sas_user_id, parametro_id, sas_user_name, sas_user_email)
             VALUES (NOW(), '003', %s, %s, %s, %s)
         """, (sas_user_id, parametro_id, sas_user_name, sas_user_email))
         conn.commit()
@@ -720,13 +726,13 @@ def create_variaveis(parametro_id):
                 return jsonify({"error": "'tipo' é obrigatório e deve ser um desses valores (LISTA, DECIMAL, TEXTO, NUMERICO)", "campos_error": ["tipo"]}), 400
             
 
-            cur.execute("""
-                DELETE FROM variavel_lista
-                WHERE variavel_id  IN (SELECT id FROM variavel WHERE parametro_id = %s)
+            cur.execute(f"""
+                DELETE FROM  {schema_db}.variavel_lista
+                WHERE variavel_id  IN (SELECT id FROM  {schema_db}.variavel WHERE parametro_id = %s)
                 """, (parametro_id,))
         
-            cur.execute("""
-                DELETE  FROM variavel
+            cur.execute(f"""
+                DELETE  FROM  {schema_db}.variavel
                 WHERE parametro_id = %s
                 """, (parametro_id,))
             
@@ -740,23 +746,23 @@ def create_variaveis(parametro_id):
 
 
             # Verifica se o nome da variável já existe
-            cur.execute("SELECT 1 FROM variavel WHERE nome = %s AND parametro_id = %s", (nome, parametro_id))
+            cur.execute(f"SELECT 1 FROM  {schema_db}.variavel WHERE nome = %s AND parametro_id = %s", (nome, parametro_id))
             existing_variable = cur.fetchone()
 
             if existing_variable:
                 return jsonify({"error": "Nome da variável já existe para este parâmetro","campos_error": ["nome_variavel"]}), 400
             
             cur.execute(
-                """
-                INSERT INTO variavel (id, nome, descricao, tipo, is_chave, tamanho, qtd_casas_decimais, parametro_id)
+                f"""
+                INSERT INTO {schema_db}.variavel (id, nome, descricao, tipo, is_chave, tamanho, qtd_casas_decimais, parametro_id)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (var_id, nome, descricao, tipo, is_chave, tamanho, qtd_casas_decimais, parametro_id)
             )
 
             cur.execute(
-                """
-                DELETE FROM dado
+                f"""
+                DELETE FROM  {schema_db}.dado
                 WHERE parametro_id = %s
                 """,
                 (parametro_id,))
@@ -781,8 +787,8 @@ def create_variaveis(parametro_id):
         for lista_info in listas_to_insert:
             lista_nome, is_visivel, var_id = lista_info
             cur.execute(
-                """
-                INSERT INTO variavel_lista (nome, is_visivel, variavel_id)
+                f"""
+                INSERT INTO {schema_db}.variavel_lista (nome, is_visivel, variavel_id)
                 VALUES (%s, %s, %s)
                 """,
                 (lista_nome, is_visivel, var_id)
@@ -813,8 +819,8 @@ def create_dados(parametro_id):
 
     try:
         cur.execute(
-            """
-                DELETE FROM dado
+            f"""
+                DELETE FROM  {schema_db}.dado
                 WHERE parametro_id = %s
             """, (parametro_id,))
             
@@ -836,8 +842,8 @@ def create_dados(parametro_id):
 
             # Inserindo na tabela 'dado'
             cur.execute(
-                """
-                INSERT INTO dado (informacao, sas_key, sas_value, parametro_id, created_at, sas_type)
+                f"""
+                INSERT INTO {schema_db}.dado (informacao, sas_key, sas_value, parametro_id, created_at, sas_type)
                 VALUES (%s, %s, %s, %s, NOW(), %s)
                 """,
                 (informacao, sas_key, sas_value, parametro_id, sas_type)

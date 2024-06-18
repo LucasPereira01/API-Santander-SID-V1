@@ -14,15 +14,18 @@ url_path_sid = os.getenv("URL_PATH_SID")
 url_path_sid_analytics = os.getenv("URL_PATH_ANALYTICS_SID")
 user_name_sid = os.getenv("USER_NAME_SID")
 password_sid = os.getenv("PASSWORD_SID")
+user_name_sid_analitico = os.getenv("USER_NAME_ANALYTICS_SID")
+password_sid_analitico = os.getenv("PASSWORD_ANALYTICS_SID")
+schema_db = os.getenv("SCHEMA_DB")
 
 
-def login(url_sid):
+def login(url_sid,user,password):
     url = url_sid + "/SASLogon/oauth/token"
     headers = { "Content-Type": "application/x-www-form-urlencoded" }
     data = {
         "grant_type": "password",
-        "username": user_name_sid,
-        "password": password_sid
+        "username": user,
+        "password": password
     }
 
     authToken = ("sas.cli", "")
@@ -78,8 +81,8 @@ def create_segmento_sid(token, url_sid, segmento_id, nome, descricao,sas_test_fo
                 raise Exception("'parentFolderUri' or 'id' not found in response data")
             
             cur.execute(
-                """ 
-                UPDATE segmento 
+                f""" 
+                UPDATE {schema_db}.segmento 
                 SET sas_test_folder_id = %s, sas_test_parent_uri = %s 
                 WHERE id = %s
                 """,
@@ -104,7 +107,7 @@ def criar_cluster_sid(token, url_sid, nome,descricao,segmento_id,cluster_id,sas_
         conn = get_db_connection()
         cur = conn.cursor()
 
-        cur.execute("SELECT * FROM segmento WHERE id = %s",(segmento_id,))
+        cur.execute(f"SELECT * FROM  {schema_db}.segmento WHERE id = %s",(segmento_id,))
         segmento = cur.fetchone()
         print("segmento",segmento)
         if not segmento:
@@ -152,8 +155,8 @@ def criar_cluster_sid(token, url_sid, nome,descricao,segmento_id,cluster_id,sas_
             
             # Insere os dados do cluster no banco de dados
             cur.execute(
-                        """
-                        UPDATE clusters 
+                        f"""
+                        UPDATE {schema_db}.clusters 
                         SET sas_test_parent_uri = %s, sas_test_folder_id = %s
                         WHERE id = %s
                         """,
@@ -175,7 +178,7 @@ def criar_politica_sid(token, url_sid, nome,descricao,cluster_id,politica_id,sas
         conn = get_db_connection()
         cur = conn.cursor()
         
-        cur.execute("SELECT * FROM clusters WHERE id = %s",(cluster_id,))
+        cur.execute(f"SELECT * FROM  {schema_db}.clusters WHERE id = %s",(cluster_id,))
         cluster = cur.fetchone()
         print("cluster",cluster)
         if not cluster:
@@ -224,8 +227,8 @@ def criar_politica_sid(token, url_sid, nome,descricao,cluster_id,politica_id,sas
             
             # Insere os dados do cluster no banco de dados
             cur.execute(
-            """
-            UPDATE politica 
+            f"""
+            UPDATE {schema_db}.politica 
             SET sas_test_parent_uri = %s, sas_test_folder_id = %s
             WHERE id = %s
             """,
@@ -247,7 +250,7 @@ def criar_politica_sid(token, url_sid, nome,descricao,cluster_id,politica_id,sas
 def check_exites_domains(parametro_id):
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT sas_domain_id FROM parametro WHERE id = %s", (parametro_id,))
+    cur.execute(f"SELECT sas_domain_id FROM  {schema_db}.parametro WHERE id = %s", (parametro_id,))
     sas_domain_id = cur.fetchone()
 
     if sas_domain_id[0] is not None:
@@ -265,7 +268,7 @@ def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica,
 
         try:
             # Verificar se o parâmetro já possui um domínio SAS atribuído
-            cur.execute("SELECT * FROM parametro WHERE id = %s", (parametro_id,))
+            cur.execute(f"SELECT * FROM  {schema_db}.parametro WHERE id = %s", (parametro_id,))
             parametro = cur.fetchone()
 
             if not parametro:
@@ -277,7 +280,7 @@ def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica,
                 return
 
             # Verificar se já existe um domínio SAS com o mesmo nome na política associada
-            cur.execute("SELECT * FROM politica WHERE id = %s", (id_politica,))
+            cur.execute(f"SELECT * FROM  {schema_db}.politica WHERE id = %s", (id_politica,))
             politica = cur.fetchone()
 
             if not politica:
@@ -317,8 +320,8 @@ def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica,
             }
 
             cur.execute(
-                """
-                UPDATE parametro 
+                f"""
+                UPDATE {schema_db}.parametro 
                 SET sas_domain_id = %s, status_code = %s 
                 WHERE id = %s
                 """,
@@ -328,7 +331,7 @@ def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica,
             print("Registro de Parâmetro atualizado com sucesso!")
 
             # Buscar os dados associados ao parâmetro no banco de dados
-            cur.execute("SELECT sas_key, sas_value FROM dado WHERE parametro_id = %s ", (parametro_id,))
+            cur.execute(f"SELECT sas_key, sas_value FROM  {schema_db}.dado WHERE parametro_id = %s ", (parametro_id,))
             valores_dados = cur.fetchall()
 
             sas_domain_id = relevant_info["id"]
@@ -362,8 +365,8 @@ def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica,
                 entries_info = response_entries.json()
 
                 cur.execute(
-                    """
-                    UPDATE parametro 
+                    f"""
+                    UPDATE {schema_db}.parametro 
                     SET sas_content_id = %s, status_code = %s
                     WHERE id = %s
                     """,
@@ -411,7 +414,7 @@ def create_variavel_global(token, url_sid, nome, id_politica, parametro_id):
         cur = conn.cursor()
         try:
                 # Verificar se o parâmetro já possui um domínio SAS atribuído
-                cur.execute("SELECT * FROM parametro WHERE id = %s", (parametro_id,))
+                cur.execute(f"SELECT * FROM  {schema_db}.parametro WHERE id = %s", (parametro_id,))
                 parametro = cur.fetchone()
 
                 if not parametro:
@@ -423,7 +426,7 @@ def create_variavel_global(token, url_sid, nome, id_politica, parametro_id):
                     return
 
                 # Verificar se já existe um domínio SAS com o mesmo nome na política associada
-                cur.execute("SELECT * FROM politica WHERE id = %s", (id_politica,))
+                cur.execute(f"SELECT * FROM  {schema_db}.politica WHERE id = %s", (id_politica,))
                 politica = cur.fetchone()
 
                 if not politica:
@@ -432,7 +435,7 @@ def create_variavel_global(token, url_sid, nome, id_politica, parametro_id):
                     return
 
             
-                cur.execute("SELECT sas_value, sas_type FROM dado WHERE parametro_id = %s",(parametro_id,))
+                cur.execute(f"SELECT sas_value, sas_type FROM  {schema_db}.dado WHERE parametro_id = %s",(parametro_id,))
                 value =  cur.fetchall()
 
                 defaultValue = value[0]['sas_value']
@@ -462,8 +465,8 @@ def create_variavel_global(token, url_sid, nome, id_politica, parametro_id):
                 }
                 status_code = '004'
                 cur.execute(
-                """
-                    UPDATE parametro 
+                f"""
+                    UPDATE {schema_db}.parametro 
                     SET sas_domain_id = %s, status_code = %s
                     WHERE id = %s
                     """,
@@ -530,7 +533,7 @@ def verificar_periodicamente():
             else:
                 url_sid = url_path_sid
             # Obter o token SAS
-            token = login(url_sid)
+            token = login(url_sid,user_name_sid_analitico,password_sid_analitico)
 
 
             # Verificar e criar os parâmetros
