@@ -244,9 +244,20 @@ def criar_politica_sid(token, url_sid, nome,descricao,cluster_id,politica_id,sas
     else:
         print("Politica ja existe")  
 
+def check_exites_domains(parametro_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT sas_domain_id FROM parametro WHERE id = %s", (parametro_id,))
+    sas_domain_id = cur.fetchone()
 
+    if sas_domain_id[0] is not None:
+        return sas_domain_id[0]
+    else: 
+        return None
 
-def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica, parametro_id, sas_domain_id, entries=None):
+def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica, parametro_id, entries=None):
+    sas_domain_id = check_exites_domains(parametro_id)
+
     if sas_domain_id is None:
         status_code = '004'
         conn = get_db_connection()
@@ -393,7 +404,8 @@ def type_variable(type): #string, decimal,integer,date,datetime,boolean
         case 'NUMERICO':
             return 'integer'
 
-def create_variavel_global(token, url_sid, nome, id_politica, parametro_id, sas_domain_id):
+def create_variavel_global(token, url_sid, nome, id_politica, parametro_id):
+    sas_domain_id = check_exites_domains(parametro_id)
     if sas_domain_id is None :
         conn = get_db_connection()  
         cur = conn.cursor()
@@ -493,10 +505,10 @@ def verificar_e_criar(token, url_sid, parametros_005):
 
                 # Cria o parâmetro se ainda não existir
                 if parametro['modo'] == 'CHAVE':
-                    create_domains_and_entries_sid(token, url_sid, parametro['nome'], parametro['descricao'], politica['id'], parametro['id'], parametro['sas_domain_id'], dado)
+                    create_domains_and_entries_sid(token, url_sid, parametro['nome'], parametro['descricao'], politica['id'], parametro['id'], dado)
 
                 if parametro['modo'] == 'GLOBAL':
-                    create_variavel_global(token, url_sid, parametro['nome'],  politica['id'], parametro['id'], parametro['sas_domain_id'])
+                    create_variavel_global(token, url_sid, parametro['nome'],  politica['id'], parametro['id'])
             except Exception as e:
                 print(f"Erro ao criar parâmetro: {e}")
                 # Você pode optar por lançar novamente a exceção ou lidar com ela aqui

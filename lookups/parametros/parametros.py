@@ -384,9 +384,6 @@ def get_all_parametro():
 
 
 def get_parametro_by_id(parametro_id):
-    conn = None
-    cur = None
-
     try:
         conn = get_db_connection() 
         cur = conn.cursor()  
@@ -442,6 +439,16 @@ def get_parametro_by_id(parametro_id):
             (parametro_id,)
         )
         rows2 = cur.fetchall()
+        
+        cur.execute( #id, informacao, sas_key, sas_value, created_at, deleted_at, parametro_id, sas_type
+            """
+            SELECT id, informacao, sas_key, sas_value, created_at, deleted_at, parametro_id, sas_type
+            FROM public.dado
+            WHERE parametro_id = %s
+            """,
+            (parametro_id,)
+        )
+        dados = cur.fetchall()
 
         if not rows:
             return jsonify({"error": "Parametro não encontrado"}), 404
@@ -527,13 +534,13 @@ def get_parametro_by_id(parametro_id):
         parametro_json["variaveis"] = list(variaveis.values())
 
         # Montando a lista de dados associados ao parâmetro
-        for row in rows:
-            if row["dado_id"]:  # Certifique-se de que o dado existe
+        for row in dados:
+            if row["id"]:  # Certifique-se de que o dado existe
                 parametro_json["dados"].append({
-                    "id": row["dado_id"],
-                    "informacao": row["dado_informacao"],
-                    "sas_key": row["dado_sas_key"],
-                    "sas_value": row["dado_sas_value"]
+                    "id": row["id"],
+                    "informacao": row["informacao"],
+                    "sas_key": row["sas_key"],
+                    "sas_value": row["sas_value"]
                 })
 
         # Montando a lista de evento associados ao parâmetro
@@ -805,6 +812,13 @@ def create_dados(parametro_id):
     cur = conn.cursor()
 
     try:
+        cur.execute(
+            """
+                DELETE FROM dado
+                WHERE parametro_id = %s
+            """, (parametro_id,))
+            
+
         for value in body:
             informacao = json.dumps(value.get("informacao"))  # Serializa o dicionário para JSON
             sas_key = value.get("sas_key")
@@ -819,12 +833,7 @@ def create_dados(parametro_id):
             if not sas_value:
                 return jsonify({"error": "'sas_value' é obrigatório", "campos_error": ["sas_value"]}), 400
             
-            cur.execute(
-            """
-                DELETE FROM dado
-                WHERE parametro_id = %s
-            """, (parametro_id,))
-            
+
             # Inserindo na tabela 'dado'
             cur.execute(
                 """
