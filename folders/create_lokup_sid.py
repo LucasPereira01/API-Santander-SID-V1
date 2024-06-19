@@ -3,6 +3,7 @@ import requests
 from dotenv import load_dotenv
 import os 
 import time
+import uuid
 from lookups.parametros.parametros import get_all_parametro
 
 # Carrega as variáveis de ambiente do arquivo .env
@@ -321,14 +322,16 @@ def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica,
             )
             conn.commit()
 
-                            # Registrar evento de criação de parâmetro
+            # Registrar evento de criação de parâmetro
+            
+            evento_id = str(uuid.uuid4())
             cur.execute(
                     f"""
-                    INSERT INTO {schema_db}.evento (status_code, sas_user_id, parametro_id)
-                    VALUES (%s, %s, %s)
+                    INSERT INTO {schema_db}.evento (id,status_code, sas_user_id, parametro_id)
+                    VALUES (%s, %s, %s, %s)
                     RETURNING id
                     """,
-                    (status_code, sas_user_id, parametro_id)
+                    (evento_id, status_code, sas_user_id, parametro_id)
             )
             conn.commit()
 
@@ -481,14 +484,14 @@ def create_variavel_global(token, url_sid, nome, id_politica, parametro_id):
                     (relevant_info["id"], status_code, parametro_id)
                 )
                 conn.commit()
-
+                evento_id = str(uuid.uuid4())
                 cur.execute(
                     f"""
-                        INSERT INTO {schema_db}.evento (status_code, sas_user_id, parametro_id)
-                        VALUES (%s, %s, %s)
+                        INSERT INTO {schema_db}.evento (id, status_code, sas_user_id, parametro_id)
+                        VALUES (%s, %s, %s, %s)
                         RETURNING id
                     """, 
-                    (status_code, sas_user_id, parametro_id))
+                    (evento_id, status_code, sas_user_id, parametro_id))
 
                 conn.commit()
                 print("Registro de Parâmetro atualizado com sucesso!",relevant_info["id"])

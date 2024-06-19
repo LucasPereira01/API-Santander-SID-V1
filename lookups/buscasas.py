@@ -4,6 +4,7 @@ import schedule
 from db import get_db_connection
 from dotenv import load_dotenv
 import os
+import uuid
 
 # Carrega as variáveis de ambiente do arquivo .env
 load_dotenv()
@@ -437,18 +438,21 @@ def create_parametro( id_politica):
     conn = get_db_connection()
     cur = conn.cursor()
 
+    
     try:
         cur.execute(f"SELECT * FROM {schema_db}.politica WHERE id = %s", (id_politica,))
         politica = cur.fetchone()
         if not politica:
             return jsonify({"error": "Política não encontrada"}), 400
 
+        segmento_id = str(uuid.uuid4())
+
         cur.execute(
                     f"""
-                        INSERT INTO {schema_db}.parametro (nome, descricao, modo, data_hora_vigencia, versao, is_vigente, status_code, politica_id, sas_user_id)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        INSERT INTO {schema_db}.parametro (id ,nome, descricao, modo, data_hora_vigencia, versao, is_vigente, status_code, politica_id, sas_user_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """,
-                        (name, descricao,modo,data_hora_vigencia,versao,is_vigente, status_code, id_politica, sas_user_id)
+                        (segmento_id, name, descricao,modo,data_hora_vigencia,versao,is_vigente, status_code, id_politica, sas_user_id)
                     )
         conn.commit()
         return jsonify({"error": f"Nao foi possivel Criar o parametro"}), 400
@@ -536,12 +540,14 @@ def create_domains_and_entries(token, id_politica):
                 if response_entries.status_code == 201:
                     entries_info = response_entries.json()
 
+                    segmento_id = str(uuid.uuid4())
+
                     cur.execute(
                         f"""
-                        INSERT INTO {schema_db}.parametro (nome, descricao, modo, data_hora_vigencia, versao, is_vigente, sas_domain_id, sas_content_id, status_code, politica_id, sas_user_id)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        INSERT INTO {schema_db}.parametro (id, nome, descricao, modo, data_hora_vigencia, versao, is_vigente, sas_domain_id, sas_content_id, status_code, politica_id, sas_user_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """,
-                        (name, descricao,modo,data_hora_vigencia,versao,True, relevant_info["id"], entries_info["id"], status_code, id_politica, relevant_info["modifiedBy"])
+                        (segmento_id, name, descricao,modo,data_hora_vigencia,versao,True, relevant_info["id"], entries_info["id"], status_code, id_politica, relevant_info["modifiedBy"])
                     )
                     conn.commit()
 
