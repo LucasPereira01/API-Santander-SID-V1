@@ -43,7 +43,7 @@ def login(url_sid,user,password):
     except Exception as e:
         print(str(e))
         raise
-    
+
 
 def create_segmento_sid(token, url_sid, segmento_id, nome, descricao,sas_test_folder_id):
     if sas_test_folder_id is None:
@@ -261,7 +261,7 @@ def check_exites_domains(parametro_id):
 def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica, parametro_id, entries=None):
     sas_domain_id = check_exites_domains(parametro_id)
     sas_user_id = 'teste'
-    
+
     if sas_domain_id is None:
         status_code = '004'
         conn = get_db_connection()

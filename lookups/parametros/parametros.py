@@ -83,14 +83,14 @@ def create_parametro():
             (parametro_id, nome, descricao, modo, data_hora_vigencia, versao, is_vigente, status_code, politica_id, sas_user_id, sas_user_name, sas_user_email)
         )
         conn.commit()
-
+        evento_id = str(uuid.uuid4())
         # Inserir o evento associado ao parâmetro
         cur.execute(
             f"""
-            INSERT INTO {schema_db}.evento (status_code, parametro_id, sas_user_id, sas_user_name, sas_user_email, created_at)
-            VALUES (%s, %s, %s, %s, %s, NOW())
+            INSERT INTO {schema_db}.evento (id, status_code, parametro_id, sas_user_id, sas_user_name, sas_user_email, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW())
             """,
-            (status_code, parametro_id, sas_user_id, sas_user_name, sas_user_email)
+            (evento_id, status_code, parametro_id, sas_user_id, sas_user_name, sas_user_email)
         )
         conn.commit()
 
@@ -665,10 +665,11 @@ def delete_parametro(parametro_id):
         conn.commit()
         
         # Inserir um novo registro na tabela evento
+        evento_id = str(uuid.uuid4())
         cur.execute(f"""
-            INSERT INTO {schema_db}.evento (created_at, status_code, sas_user_id, parametro_id, sas_user_name, sas_user_email)
-            VALUES (NOW(), '003', %s, %s, %s, %s)
-        """, (sas_user_id, parametro_id, sas_user_name, sas_user_email))
+            INSERT INTO {schema_db}.evento (id ,created_at, status_code, sas_user_id, parametro_id, sas_user_name, sas_user_email)
+            VALUES (%s,NOW(), '003', %s, %s, %s, %s)
+        """, (evento_id,sas_user_id, parametro_id, sas_user_name, sas_user_email))
         conn.commit()
         
         # Retornar uma resposta JSON indicando sucesso
@@ -783,15 +784,18 @@ def create_variaveis(parametro_id):
 
                     listas_to_insert.append((lista_nome, is_visivel, var_id))
 
+        variaveis_lista_id =  str(uuid.uuid4())
+
         # Inserindo listas na tabela temporária
         for lista_info in listas_to_insert:
             lista_nome, is_visivel, var_id = lista_info
+
             cur.execute(
                 f"""
-                INSERT INTO {schema_db}.variavel_lista (nome, is_visivel, variavel_id)
-                VALUES (%s, %s, %s)
+                INSERT INTO {schema_db}.variavel_lista (id, nome, is_visivel, variavel_id)
+                VALUES (%s, %s, %s, %s)
                 """,
-                (lista_nome, is_visivel, var_id)
+                (variaveis_lista_id,lista_nome, is_visivel, var_id)
             )
 
         conn.commit()
@@ -839,14 +843,15 @@ def create_dados(parametro_id):
             if not sas_value:
                 return jsonify({"error": "'sas_value' é obrigatório", "campos_error": ["sas_value"]}), 400
             
-
+            dado_id =  str(uuid.uuid4())
+            
             # Inserindo na tabela 'dado'
             cur.execute(
                 f"""
-                INSERT INTO {schema_db}.dado (informacao, sas_key, sas_value, parametro_id, created_at, sas_type)
-                VALUES (%s, %s, %s, %s, NOW(), %s)
+                INSERT INTO {schema_db}.dado (id, informacao, sas_key, sas_value, parametro_id, created_at, sas_type)
+                VALUES (%s ,%s, %s, %s, %s, NOW(), %s)
                 """,
-                (informacao, sas_key, sas_value, parametro_id, sas_type)
+                (dado_id, informacao, sas_key, sas_value, parametro_id, sas_type)
             )
             conn.commit()
 
@@ -877,13 +882,15 @@ def atualizar_status(parametro_id):
         # Conectar ao banco de dados
         conn = get_db_connection()
         cur = conn.cursor()
+ 
+        evento_id = str(uuid.uuid4())
 
-                # 1. Criar um novo evento na tabela 'evento'
+        # 1. Criar um novo evento na tabela 'evento'
         cur.execute(f"""
-                INSERT INTO {schema_db}.evento (justificativa, status_code, sas_user_id, sas_user_name, sas_user_email, parametro_id)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                INSERT INTO {schema_db}.evento (id,justificativa, status_code, sas_user_id, sas_user_name, sas_user_email, parametro_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
-            """, (justificativa, status_code, sas_user_id, sas_user_name, sas_user_email, parametro_id))
+            """, (evento_id, justificativa, status_code, sas_user_id, sas_user_name, sas_user_email, parametro_id))
         evento_id = cur.fetchone()[0]
 
         cur.execute(f"""
