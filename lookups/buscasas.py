@@ -518,7 +518,7 @@ def create_domains_and_entries(token, id_politica):
             }
 
             if entries:
-                url_entries = f"https://server.demo.sas.com/referenceData/domains/{domain_info['id']}/contents"
+                url_entries = f"{url_path_sid}/referenceData/domains/{domain_info['id']}/contents"
 
                 payload = {
                     "label": body.get("name"),

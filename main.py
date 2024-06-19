@@ -3,6 +3,9 @@ import schedule
 import threading
 import time
 from flask_cors import CORS
+from dotenv import load_dotenv
+import os
+
 
 from lookups.buscasas import *
 from lookups.parametros.parametros import *
@@ -12,6 +15,13 @@ from folders.politcs import *
 from folders.create_lokup_sid import *
 
 from users.users import *
+
+# Carrega as variáveis de ambiente do arquivo .env
+load_dotenv()
+
+# Acesso à variável de ambiente
+porta = os.getenv("PORTA")
+
 
 global_uri = None
 
@@ -190,7 +200,7 @@ def get_index():
     return make_response(jsonify({"sucesso":"Bem vindo"}))
 
 if __name__ == "__main__":
-    app.run(debug=False, ssl_context='adhoc',port=8080)
+    app.run(debug=False, ssl_context='adhoc',port=porta)
 
 # Função para execução do loop de verificação em uma thread
 def run_verification():

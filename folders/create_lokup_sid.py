@@ -43,6 +43,7 @@ def login(url_sid,user,password):
     except Exception as e:
         print(str(e))
         raise
+    
 
 def create_segmento_sid(token, url_sid, segmento_id, nome, descricao,sas_test_folder_id):
     if sas_test_folder_id is None:
@@ -402,16 +403,15 @@ def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica,
         print('Parâmetro já existe')
 
 
-def type_variable(type): #string, decimal,integer,date,datetime,boolean
-    match type:
-        case 'TEXTO' :
-            return 'string'
-        case 'LISTA' :
-            return 'string'
-        case 'DECIMAL' :
-            return 'decimal'
-        case 'NUMERICO':
-            return 'integer'
+def type_variable(type):
+    if type == 'TEXTO' or type == 'LISTA':
+        return 'string'
+    elif type == 'DECIMAL':
+        return 'decimal'
+    elif type == 'NUMERICO':
+        return 'integer'
+    else:
+        return None
 
 def create_variavel_global(token, url_sid, nome, id_politica, parametro_id):
     sas_user_id = 'lucas'

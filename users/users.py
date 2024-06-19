@@ -65,12 +65,15 @@ def login():
                             for item in items:
                                 print(item)
                                 ids.append(item['id'])
-
                             
+                            emailAddresses = None
+                            if res2['emailAddresses'] and len(res2['emailAddresses']) > 0:
+                                emailAddresses = res2['emailAddresses'][0]['value']
                                 
+                            print("Email Address",emailAddresses)
                             return {
                                 "user_id": res2['id'],
-                                "user_email": res2['emailAddresses'][0]['value'],
+                                "user_email": emailAddresses,
                                 "user_name": res2['name'],
                                 "token": res['access_token'],
                                 "expires_in": res['expires_in'],
