@@ -67,8 +67,8 @@ def login():
                                 ids.append(item['id'])
                             
                             emailAddresses = None
-                            if res2['emailAddresses'] and len(res2['emailAddresses']) > 0:
-                                emailAddresses = res2['emailAddresses'][0]['value']
+                            # if res2['emailAddresses'] and len(res2['emailAddresses']) > 0:
+                            #     emailAddresses = res2['emailAddresses'][0]['value']
                                 
                             print("Email Address",emailAddresses)
                             return {

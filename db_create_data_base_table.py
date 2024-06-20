@@ -7,7 +7,7 @@ import os
 load_dotenv()
 
 # Obter URL do banco de dados a partir da variável de ambiente
-DATABASE_URL = 'postgres://postgres:Soldadowolooko1@localhost:5432/postgres'
+DATABASE_URL = ''
 TARGET_DB = 'santander-cirrus'
 
 def create_database():
