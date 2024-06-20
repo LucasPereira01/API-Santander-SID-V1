@@ -110,14 +110,12 @@ def criar_cluster_sid(token, url_sid, nome,descricao,segmento_id,cluster_id,sas_
 
         cur.execute(f"SELECT * FROM  {schema_db}.segmento WHERE id = %s",(segmento_id,))
         segmento = cur.fetchone()
-        print("segmento",segmento)
         if not segmento:
             print("Segmento não encontrado")
             print({"error":"Segmento não encontrado"},400)
             return
 
         sas_parent_uri_seg = segmento['sas_test_parent_uri']
-        print("sas_parent_uri_seg",sas_parent_uri_seg)
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}",
@@ -181,7 +179,6 @@ def criar_politica_sid(token, url_sid, nome,descricao,cluster_id,politica_id,sas
         
         cur.execute(f"SELECT * FROM  {schema_db}.clusters WHERE id = %s",(cluster_id,))
         cluster = cur.fetchone()
-        print("cluster",cluster)
         if not cluster:
             print({"error":"Cluster não encontrado"})
             return

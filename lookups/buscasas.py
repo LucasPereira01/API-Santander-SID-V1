@@ -365,7 +365,6 @@ def update_entries(token):
                 # Extrai o ID da URI
                 uri_id = extract_id_from_uri(uri)
                 matching_uris.append(uri)
-        print(matching_uris)
         # Verifica se há URIs correspondentes
         if not matching_uris:
             return {"error": "Nenhuma URI correspondente encontrada para o domínio."}, 404

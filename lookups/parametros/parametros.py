@@ -455,7 +455,19 @@ def get_parametro_by_id(parametro_id):
             (parametro_id,)
         )
         dados = cur.fetchall()
+    
 
+        cur.execute( # nome, descricao, tipo, is_chave, tamanho, qtd_casas_decimais, parametro_id, created_at
+            f"""
+            SELECT id, nome, descricao, tipo, is_chave, tamanho, qtd_casas_decimais, parametro_id, created_at
+            FROM  {schema_db}.variavel
+            WHERE parametro_id = %s
+            """,
+            (parametro_id,)
+        )
+        variavel = cur.fetchall()
+
+        
         if not rows:
             return jsonify({"error": "Parametro não encontrado"}), 404
 
@@ -513,30 +525,41 @@ def get_parametro_by_id(parametro_id):
 
         # Montando a lista de variáveis e suas listas associadas
         variaveis = {}
-        for row in rows:
-            variavel_id = row["variavel_id"]
+        for row in variavel:
+            variavel_id = row["id"]
             if variavel_id:
                 if variavel_id not in variaveis:
                     variaveis[variavel_id] = {
-                        "id": row["variavel_id"],
-                        "nome": row["variavel_nome"],
-                        "descricao": row["variavel_descricao"],
-                        "tipo": row["variavel_tipo"],
-                        "is_chave": row["variavel_is_chave"],
-                        "tamanho": row["variavel_tamanho"],
-                        "qtd_casas_decimais": row["variavel_qtd_casas_decimais"],
+                        "id": row["id"],
+                        "nome": row["nome"],
+                        "descricao": row["descricao"],
+                        "tipo": row["tipo"],
+                        "is_chave": row["is_chave"],
+                        "tamanho": row["tamanho"],
+                        "qtd_casas_decimais": row["qtd_casas_decimais"],
                         "variaveis_lista": []
                     }
             else:
                 parametro_json["variaveis"] = []
 
-            if row["variavel_lista_id"]:
-                variaveis[variavel_id]["variaveis_lista"].append({
-                    "id": row["variavel_lista_id"],
-                    "nome": row["variavel_lista_nome"],
-                    "is_visivel": row["variavel_lista_is_visivel"],
-                    "variavel_id": row["variavel_lista_variavel_id"]
-                })
+            cur.execute( #id, nome, is_visivel, variavel_id
+            f"""
+            SELECT id, nome, is_visivel, variavel_id
+            FROM  {schema_db}.variavel_lista
+            WHERE variavel_id = %s
+            """,
+            (variavel_id,)
+            )
+            variavel_lista = cur.fetchall()
+
+            for item in variavel_lista:
+                if item["id"]:
+                    variaveis[variavel_id]["variaveis_lista"].append({
+                        "id": item["id"],
+                        "nome": item["nome"],
+                        "is_visivel": item["is_visivel"],
+                        "variavel_id": item["variavel_id"]
+                    })
         parametro_json["variaveis"] = list(variaveis.values())
 
         # Montando a lista de dados associados ao parâmetro
@@ -691,7 +714,6 @@ def create_variaveis(parametro_id):
     conn = get_db_connection()
     cur = conn.cursor()
 
-    print("body",body)
     try:
         variaveis_to_insert = []
         listas_to_insert = []
@@ -705,7 +727,6 @@ def create_variaveis(parametro_id):
             tamanho = value.get("tamanho")
             qtd_casas_decimais = value.get("qtd_casas_decimais")
 
-            print("value",value)
 
             # Validando os campos
             if not isinstance(is_chave, bool):
@@ -784,11 +805,11 @@ def create_variaveis(parametro_id):
 
                     listas_to_insert.append((lista_nome, is_visivel, var_id))
 
-        variaveis_lista_id =  str(uuid.uuid4())
 
         # Inserindo listas na tabela temporária
         for lista_info in listas_to_insert:
             lista_nome, is_visivel, var_id = lista_info
+            variaveis_lista_id =  str(uuid.uuid4())
 
             cur.execute(
                 f"""

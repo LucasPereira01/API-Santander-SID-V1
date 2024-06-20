@@ -211,9 +211,11 @@ def edit_cluster(cluster_id):
         return jsonify({"error": "Descrição deve ter no máximo 350 caracteres", "campos_error": ["descricao"]}), 400
     
     # Validação do campo 'nome' usando expressão regular
-    name_regex = re.compile(r"^[A-Za-z0-9_]+$")
-    if not name_regex.match(nome):
-         return jsonify({"error": "Nome deve conter apenas letras, números ou underscores","campos_error":["nome"]}), 400
+
+    if nome is not None:
+        name_regex = re.compile(r"^[A-Za-z0-9_]+$")
+        if not name_regex.match(nome):
+            return jsonify({"error": "Nome deve conter apenas letras, números ou underscores","campos_error":["nome"]}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -238,7 +240,7 @@ def edit_cluster(cluster_id):
         if has_association and nome:
             return jsonify({"error": "O 'nome' não pode ser alterado, está associado a uma Política", "campos_error": ["nome"]})
         
-        cur.execute(f"SELECT * FROM  {schema_db}.clusters WHERE nome = %s AND segmento_id = %s",(nome, segmento_id))
+        cur.execute(f"SELECT * FROM  {schema_db}.clusters WHERE nome = %s AND segmento_id = %s AND id != %s",(nome, segmento_id,cluster_id))
         existing_cluster = cur.fetchone()
 
         if existing_cluster:

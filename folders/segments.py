@@ -93,9 +93,10 @@ def edit_segmento(segmento_id):
         return jsonify({"error": "Descrição deve ter no máximo 350 caracteres","campos_error":["descricao"]}), 400
     
     # Validação do campo 'nome' usando expressão regular
-    name_regex = re.compile(r"^[A-Za-z0-9_]+$")
-    if not name_regex.match(nome):
-        return jsonify({"error": "Nome deve conter apenas letras, números ou underscores","campos_error":["nome"]}), 400
+    if nome is not None:
+        name_regex = re.compile(r"^[A-Za-z0-9_]+$")
+        if not name_regex.match(nome):
+            return jsonify({"error": "Nome deve conter apenas letras, números ou underscores","campos_error":["nome"]}), 400
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -112,19 +113,20 @@ def edit_segmento(segmento_id):
         if not segmento_existe:
             return jsonify({"error":"Segmento nao encontrado"}),404
         
-        # Verifica se há alguma associação do segmento com clusters
         cur.execute(f"SELECT segmento_id FROM {schema_db}.clusters WHERE segmento_id = %s", (segmento_id,))
         association = cur.fetchone()
+
         if association:
             has_association = True
-        # Atualiza apenas se houver nome na requisição ou se não houver associação com clusters
 
         if has_association and nome:
             return jsonify({"error": "O 'nome' nao pode ser alterado, esta associado a um cluster","campos_error":["nome"]})
         
+        # verificar se o nome ja existe, se ele existe
         if nome and not has_association:
-            cur.execute(f"SELECT * FROM {schema_db}.segmento WHERE nome = %s",(nome,))
+            cur.execute(f"SELECT * FROM {schema_db}.segmento WHERE nome = %s AND id != %s",(nome,segmento_id,))
             existing_cluster = cur.fetchone()
+            
 
             if existing_cluster: 
                 return jsonify({"error": "O segmento ja existe","campos_error":["nome"]}), 400    
