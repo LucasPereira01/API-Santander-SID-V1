@@ -14,63 +14,93 @@ load_dotenv()
 url_path_sid = os.getenv("URL_PATH_SID")
 url_path_sid_analytics = os.getenv("URL_PATH_ANALYTICS_SID")
 schema_db = os.getenv("SCHEMA_DB")
+create_seg_cluster_politica = os.getenv("CREATE_SEG_CLUSTER_POLITICA")
 
 app = Flask(__name__)
 
+from flask import jsonify
+
+def funcoes(sas_user_group, permitted_groups):
+    if not permitted_groups:
+        return jsonify({'error': "Lista de permissões não encontrada no arquivo .env"}), 500
+
+    # Verificar se o sas_user_group está na lista de permissões
+    if sas_user_group not in permitted_groups:
+        return jsonify({'error': "Usuário não tem permissão para criar o segmento","campos_error":["Usuario sem Permissão"]}), 403
+    
+    return True
+
+
 def create_segmento_data_base():
     data = request.get_json()
-    
+    nome = data.get('nome')
+    descricao = data.get('descricao', '')
+    sas_user_groups = request.headers.get('Sas-User-Groups')
+    print(sas_user_groups)
+
+    # Verificar se o cabeçalho 'Sas-User-Groups' está presente na requisição
+    if not sas_user_groups:
+        return jsonify({'error': "Cabeçalho 'Sas-User-Groups' não encontrado na requisição","campos_error":["Sas-User-Groups"]}), 400
+
+    # Carregar a lista de permissões do .env
+    create_seg_cluster_politica = os.getenv("CREATE_SEG_CLUSTER_POLITICA")
+    create_seg_cluster_politica = create_seg_cluster_politica.split(",") if create_seg_cluster_politica else []
+
+    # Verificar as permissões usando a função funcoes
+    valid_permission = funcoes(sas_user_groups, create_seg_cluster_politica)
+    if isinstance(valid_permission, tuple):  # Se funcoes retornar um erro
+        return valid_permission
+
+
     # Verificar se 'is_ativo' está presente no JSON e é um valor booleano
     if "is_ativo" not in data or not isinstance(data["is_ativo"], bool):
         return jsonify({"error": "'is_ativo' é obrigatório e deve ser um booleano","campos_error":["is_ativo"]}), 400
 
-    nome = data.get('nome')
-    descricao = data.get('descricao', '')
 
     if not nome:
         return jsonify({"error": "'nome' é obrigatório","campos_error":["nome"]}), 400
-    
+        
     elif not descricao:
-        return jsonify({"error": "'descricao' é obrigatório ","campos_error":["descricao"]}), 400
+            return jsonify({"error": "'descricao' é obrigatório ","campos_error":["descricao"]}), 400
 
-    # Verificar se 'nome' e 'descricao' estão presentes e são válidos
+        # Verificar se 'nome' e 'descricao' estão presentes e são válidos
     elif len(descricao) > 350:
-        return jsonify({"error": "Descrição deve ter no máximo 350 caracteres","campos_error":["descricao"]}), 400
+            return jsonify({"error": "Descrição deve ter no máximo 350 caracteres","campos_error":["descricao"]}), 400
 
-    # Validação do campo 'nome' usando expressão regular
+        # Validação do campo 'nome' usando expressão regular
     name_regex = re.compile(r"^[A-Za-z0-9_]+$")
     if not name_regex.match(nome):
-        return jsonify({"error": "Nome deve conter apenas letras, números ou underscores","campos_error":["nome"]}), 400
+            return jsonify({"error": "Nome deve conter apenas letras, números ou underscores","campos_error":["nome"]}), 400
 
-    # Pegar o valor de 'is_ativo' do JSON
+        # Pegar o valor de 'is_ativo' do JSON
     is_ativo = data.get('is_ativo', True)
 
     conn = get_db_connection()
     cur = conn.cursor()
     segmento_id = str(uuid.uuid4())
     try:
-        cur.execute(f"SELECT * FROM {schema_db}.segmento WHERE nome = %s",(nome,))
-        existing_cluster = cur.fetchone()
-        if existing_cluster: 
-            return jsonify({"error": "O segmento ja existe","campos_error":["nome"]}), 400
-        
-        cur.execute(
-            f"""
-            INSERT INTO {schema_db}.segmento (id, nome, descricao, is_ativo)
-            VALUES (%s, %s, %s, %s)
-            """,
-            (segmento_id, nome, descricao, is_ativo)
-        )
-        conn.commit()
-
+            cur.execute(f"SELECT * FROM {schema_db}.segmento WHERE nome = %s",(nome,))
+            existing_cluster = cur.fetchone()
+            if existing_cluster: 
+                return jsonify({"error": "O segmento ja existe","campos_error":["nome"]}), 400
             
-        return jsonify({"message": "Segmento Criado com Sucesso", "id": segmento_id}), 201
+            cur.execute(
+                f"""
+                INSERT INTO {schema_db}.segmento (id, nome, descricao, is_ativo)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (segmento_id, nome, descricao, is_ativo)
+            )
+            conn.commit()
+
+                
+            return jsonify({"message": "Segmento Criado com Sucesso", "id": segmento_id}), 201
     except Exception as e:
-        conn.rollback()
-        return jsonify({"error": str(e)}), 500
+            conn.rollback()
+            return jsonify({"error": str(e)}), 500
     finally:
-        cur.close()
-        conn.close()
+            cur.close()
+            conn.close()
 
 
 def edit_segmento(segmento_id):

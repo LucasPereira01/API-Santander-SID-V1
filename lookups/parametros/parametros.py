@@ -62,7 +62,7 @@ def create_parametro():
     conn = get_db_connection()
     cur = conn.cursor()
     try:
-        cur.execute(f"SELECT * FROM  {schema_db}.parametro WHERE nome = %s AND politica_id = %s",(nome, politica_id))
+        cur.execute(f"SELECT * FROM  {schema_db}.parametro WHERE nome = %s AND politica_id = %s AND status_code != '003' ",(nome, politica_id))
         existing_cluster = cur.fetchone()
 
         if existing_cluster:
@@ -637,23 +637,29 @@ def update_parametro(parametro_id):
              parametro_parent_id, politica_id, sas_user_id, parametro_id))
 
         conn.commit()
+        #parametro_atualizado = cur.fetchone()
 
-        cur.execute(f"""
-                DELETE FROM  {schema_db}.dado
-                WHERE parametro_id = %s
-                """, (parametro_id,))
+        #print("parametro_atualizado", parametro_atualizado)
+
+        # id, informacao, sas_key, sas_value, created_at, deleted_at, parametro_id, sas_type
+        # cur.execute(f"""  
+        #     DELETE FROM  {schema_db}.dado
+        #     WHERE parametro_id = %s
+        #      """, (parametro_id,))
         
-        cur.execute(f"""
-                DELETE FROM  {schema_db}.variavel_lista
-                WHERE variavel_id  IN (SELECT id FROM  {schema_db}.variavel WHERE parametro_id = %s)
-                """, (parametro_id,))
+        # id, nome, is_visivel, variavel_id
+        # cur.execute(f"""  
+        #          DELETE FROM  {schema_db}.variavel_lista
+        #          WHERE variavel_id  IN (SELECT id FROM  {schema_db}.variavel WHERE parametro_id = %s)
+        #          """, (parametro_id,))
         
-        cur.execute(f"""
-                DELETE  FROM  {schema_db}.variavel
-                WHERE parametro_id = %s
-                """, (parametro_id,))
+        #  id, nome, descricao, tipo, is_chave, tamanho, qtd_casas_decimais, parametro_id, created_at
+        # cur.execute(f""" 
+        #          DELETE  FROM  {schema_db}.variavel
+        #          WHERE parametro_id = %s
+        #          """, (parametro_id,))
             
-        conn.commit()
+        #conn.commit()
         
         return jsonify({"message": "Parametro atualizado com sucesso"}), 200
 

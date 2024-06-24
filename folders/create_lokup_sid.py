@@ -143,6 +143,8 @@ def criar_cluster_sid(token, url_sid, nome,descricao,segmento_id,cluster_id,sas_
 
             response_data = response.json()
             
+            # validar se deu bom caso nao deu  nao tem sas_folder_id e sas_parent_uri
+
             # Obtém os dados relevantes da resposta
             sas_folder_id = response_data.get("id")
             sas_parent_uri = response_data.get("links", [{}])[0].get("uri")
