@@ -10,6 +10,7 @@ import re
 from dotenv import load_dotenv
 import os
 
+
 # Carrega as variáveis de ambiente do arquivo .env
 load_dotenv()
 
@@ -132,7 +133,7 @@ def criar_cluster_data_base():
         descricao = data.get('descricao', '')
         is_ativo = data.get('is_ativo', True)
 
-            # Verificar se 'is_ativo' está presente no JSON e é um valor booleano
+        # Verificar se 'is_ativo' está presente no JSON e é um valor booleano
         if "is_ativo" not in data or not isinstance(data["is_ativo"], bool):
             return jsonify({"error": "'is_ativo' é obrigatório e deve ser um booleano","campos_error":["is_ativo"]}), 400
 
@@ -197,6 +198,7 @@ def edit_cluster(cluster_id):
     segmento_id = data.get('segmento_id')
     is_ativo = data.get('is_ativo', True)
 
+    
     # Verificar se 'is_ativo' está presente no JSON e é um valor booleano
     if "is_ativo" not in data or not isinstance(data["is_ativo"], bool):
         return jsonify({"error": "'is_ativo' é obrigatório e deve ser um booleano", "campos_error": ["is_ativo"]}), 400
@@ -276,6 +278,7 @@ def edit_cluster(cluster_id):
 def delete_cluster(cluster_id):
     conn = get_db_connection()
     cur = conn.cursor()
+
     try:
         # Verifica se o cluster existe
         cur.execute(f"SELECT 1 FROM  {schema_db}.clusters WHERE id = %s", (cluster_id,))

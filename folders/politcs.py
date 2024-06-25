@@ -286,6 +286,7 @@ def list_politica_id(politica_id):
 def delete_politica(politica_id):
     conn = get_db_connection()
     cur = conn.cursor()
+
     try:
         # Verifica se a política existe
         cur.execute(f"SELECT 1 FROM  {schema_db}.politica WHERE id = %s", (politica_id,))
