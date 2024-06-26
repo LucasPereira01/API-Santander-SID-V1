@@ -40,25 +40,26 @@ try:
 
     # Passo 1: Exportação do conteúdo
     export_url = f'{url_path_sid}/transfer/exportJobs'
-    headers = {
-        'Content-Type': 'application/vnd.sas.transfer.export.request+json',
-        'Authorization': f'Bearer {access_token}'
-    }
 
-    # Substitua "{{item_id}}" pelo ID correto do item que você deseja exportar
-    item_id = '/folders/folders/bf48e7eb-7e7d-4d6b-912b-00cf0ad382b4'
+    # Headers correspondentes ao exemplo CURL
+    headers = {
+        'accept': 'application/vnd.sas.transfer.export.job+json',
+        'content-type': 'application/vnd.sas.transfer.export.request+json',
+        'Authorization': f'Bearer {access_token}',
+        'Accept-Encoding': 'application/gzip'
+    }
+    item_id = '/folders/folders/405b09c6-698b-49fa-8135-af7a80b45d3e'
+
     export_payload = {
         'name': 'Package',
         'items': [item_id],
-        'options':{
-            "includeRules":False,
-            "includeDependencies":False,
-        }
+        'options': None
     }
+
+    print(export_payload)
 
     response = requests.post(export_url, headers=headers, json=export_payload, verify=False)
     response.raise_for_status()
-    print('1', response.text)
 
     export_id = response.json()['id']
     print(f'Exportação iniciada. Export ID: {export_id}')
@@ -68,7 +69,6 @@ try:
     while True:
         try:
             response = requests.get(check_export_url, headers=headers, verify=False)
-            print('2', response.text)
             response.raise_for_status()
 
             data = response.json()
@@ -95,15 +95,16 @@ try:
         # Passo 3: Download do conteúdo exportado
         download_url = f'{url_path_sid}{package_uri}'
         download_headers = {
+            'Content-Type': 'application/json',
+            'accept': 'application/vnd.sas.transfer.package+json',
             'Authorization': f'Bearer {access_token}'
         }
 
-        response = requests.get(download_url, headers=download_headers, verify=False)
-        print('3', response.text)
-        response.raise_for_status()
+        response_download = requests.get(download_url, headers=download_headers, verify=False)
+        response_download.raise_for_status()
 
         with open('conteudo_exportado.json', 'wb') as f:
-            f.write(response.content)
+            f.write(response_download.content)
         print('Conteúdo exportado baixado com sucesso.')
 
         # Passo 4: Preparação para importação
@@ -115,56 +116,61 @@ try:
             'file': open('conteudo_exportado.json', 'rb')  # Substitua pelo caminho do seu arquivo local
         }
 
-        response = requests.post(upload_url, headers=upload_headers, files=files, verify=False)
-        print('4', response.text)
-        response.raise_for_status()
+        response_upload = requests.post(upload_url, headers=upload_headers, files=files, verify=False)
+        response_upload.raise_for_status()
 
-        upload_id = response.json()['id']
+        upload_id = response_upload.json()['id']
         print(f'Upload concluído. Upload ID: {upload_id}')
 
         # Nome do arquivo importado
-        imported_filename = response.json()['name']
+        imported_filename = response_upload.json()['name']
         print(f'Nome do arquivo importado: {imported_filename}')
+
+
 
         # Passo 5: Importação do conteúdo
         import_url = f'{url_path_sid}/transfer/importJobs'
         import_headers = {
             'Content-type': 'application/vnd.sas.transfer.import.request+json',
-            'Accept-Encoding':'gzip, deflate, br',
+            'Accept': 'application/vnd.sas.transfer.import.job+json',
             'Authorization': f'Bearer {access_token}'
         }
-        print("ID Upload "+upload_id)
+
         import_data = {
-            'name': 'Package (3).json',
+            'name': imported_filename,
             'packageUri': f'/transfer/packages/{upload_id}',
-            'mapping': {"version":1}
+            'mapping': {
+                'version': 1
+            }
         }
+        # /folders/folders/bf48e7eb-7e7d-4d6b-912b-00cf0ad382b4
+        #/folders/folders/bf48e7eb-7e7d-4d6b-912b-00cf0ad382b4
+        print(import_data)
 
-        response = requests.post(import_url, headers=import_headers, json=import_data, verify=False)
-        print('5', response.text)
-        response.raise_for_status()
+        response_import = requests.post(import_url, headers=import_headers, json=import_data, verify=False)
+        response_import.raise_for_status()
 
-        import_id = response.json()['id']
+        import_id = response_import.json()['id']
         print(f'Importação iniciada. Import ID: {import_id}')
 
         # Passo 6: Verificação do status da importação
         check_import_url = f'{url_path_sid}/transfer/importJobs/{import_id}/state'
+        header_check = {
+            'Content-type': 'application/vnd.sas.collection+json',
+            'Authorization': f'Bearer {access_token}'
+        }
+
         while True:
             try:
-                response = requests.get(check_import_url, headers=headers, verify=False)
-                response.raise_for_status()
-
-                if response.text.strip():  # Verifica se a resposta não está vazia
-                    status = response.text.strip()  # Obtém diretamente o valor do estado
-                else:
-                    raise ValueError('Resposta vazia ou inválida.')
-
+                response = requests.get(check_import_url, headers=header_check, verify=False)
+                data = response.text
+                status = data
                 print(f'Status da importação: {status}')
 
                 if status == 'completed':
                     print('Importação concluída com sucesso.')
                     break
-                elif status == 'failed':  # Condição corrigida para verificar 'failed' em minúsculas
+                elif status == 'failed':
                     raise Exception('A importação falhou.')
 
                 time.sleep(10)  # Espera 10 segundos antes de verificar novamente
@@ -173,7 +179,7 @@ try:
                 print(f'Erro na requisição ao verificar status da importação: {req_err}')
                 break
             except ValueError as val_err:
-                print(f'Erro de valor ao analisar resposta: {val_err}')
+                print(f'Erro de valor ao analisar JSON: {val_err}')
                 break
             except Exception as err:
                 print(f'Erro desconhecido ao verificar status da importação: {err}')
