@@ -10,6 +10,9 @@ load_dotenv()
 url_path_sid = os.getenv("URL_PATH_SID")
 user_name_sid = os.getenv("USER_NAME_SID")
 password_sid = os.getenv("PASSWORD_SID")
+user_name_sid_analitico = os.getenv("USER_NAME_ANALYTICS_SID")
+password_sid_analitico = os.getenv("PASSWORD_ANALYTICS_SID")
+url_path_sid_analytics = os.getenv("URL_PATH_ANALYTICS_SID")
 
 def login(url_sid, user, password):
     url = f"{url_sid}/SASLogon/oauth/token"
@@ -37,35 +40,36 @@ def login(url_sid, user, password):
 try:
     # Configurações
     access_token = login(url_path_sid, user_name_sid, password_sid)
+    access_token_anlitic = login(url_path_sid_analytics, user_name_sid_analitico, password_sid_analitico)
 
     # Passo 1: Exportação do conteúdo
-    export_url = f'{url_path_sid}/transfer/exportJobs'
+    export_url = f'{url_path_sid_analytics}/transfer/exportJobs'
 
     # Headers correspondentes ao exemplo CURL
     headers = {
         'accept': 'application/vnd.sas.transfer.export.job+json',
         'content-type': 'application/vnd.sas.transfer.export.request+json',
-        'Authorization': f'Bearer {access_token}',
+        'Authorization': f'Bearer {access_token_anlitic}',
         'Accept-Encoding': 'application/gzip'
     }
-    item_id = '/folders/folders/405b09c6-698b-49fa-8135-af7a80b45d3e'
+    item_id = '/referenceData/globalVariables/2a7265c3-b958-4c26-a9c7-24c7eeffaa0f'
+    
 
     export_payload = {
         'name': 'Package',
         'items': [item_id],
         'options': None
     }
-
-    print(export_payload)
-
+    print('Export URL',export_url)
     response = requests.post(export_url, headers=headers, json=export_payload, verify=False)
+
     response.raise_for_status()
 
     export_id = response.json()['id']
     print(f'Exportação iniciada. Export ID: {export_id}')
 
     # Passo 2: Verificação do status da exportação
-    check_export_url = f'{url_path_sid}/transfer/exportJobs/{export_id}'
+    check_export_url = f'{url_path_sid_analytics}/transfer/exportJobs/{export_id}'
     while True:
         try:
             response = requests.get(check_export_url, headers=headers, verify=False)
@@ -93,11 +97,11 @@ try:
 
     if status == 'completed':
         # Passo 3: Download do conteúdo exportado
-        download_url = f'{url_path_sid}{package_uri}'
+        download_url = f'{url_path_sid_analytics}{package_uri}'
         download_headers = {
             'Content-Type': 'application/json',
             'accept': 'application/vnd.sas.transfer.package+json',
-            'Authorization': f'Bearer {access_token}'
+            'Authorization': f'Bearer {access_token_anlitic}'
         }
 
         response_download = requests.get(download_url, headers=download_headers, verify=False)

@@ -260,7 +260,6 @@ def check_exites_domains(parametro_id):
 
 def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica, parametro_id, entries=None):
     sas_domain_id = check_exites_domains(parametro_id)
-    sas_user_id = 'teste'
 
     if sas_domain_id is None:
         status_code = '004'
@@ -310,19 +309,23 @@ def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica,
 
             domain_info = response.json()
 
+            sas_parent_uri = domain_info.get("links", [{}])[0].get("uri")
+
+            print("URI desejada:", sas_parent_uri)
+
             # Atualizar o parâmetro com o ID do domínio SAS criado e status_code
             cur.execute(
                 f"""
                 UPDATE {schema_db}.parametro 
-                SET sas_domain_id = %s, status_code = %s 
+                SET sas_domain_id = %s, status_code = %s,  parent_sas_uri = %s
                 WHERE id = %s
                 """,
-                (domain_info["id"], status_code, parametro_id)
+                (domain_info["id"], status_code, sas_parent_uri, parametro_id)
             )
             conn.commit()
 
             # Registrar evento de criação de parâmetro
-            
+            sas_user_id = 'teste'
             evento_id = str(uuid.uuid4())
             cur.execute(
                     f"""
@@ -372,7 +375,7 @@ def create_domains_and_entries_sid(token, url_sid, name, descricao, id_politica,
                 # Atualizar o parâmetro com o ID da entrada criada e status_code
                 cur.execute(
                     f"""
-                    UPDATE {schema_db}.parametro 
+                    UPDATE {schema_db}.parametro s
                     SET sas_content_id = %s, status_code = %s
                     WHERE id = %s
                     """,
@@ -467,32 +470,41 @@ def create_variavel_global(token, url_sid, nome, id_politica, parametro_id):
                 response = requests.post(url, json=payload, headers=headers, verify=False)
 
                 domain_info = response.json()
-
+                print('DOMAINN VARIABLE',domain_info)
+            
                 relevant_info = {
                     "name": domain_info["name"],
                     "id": domain_info["id"],
                 }
                 status_code = '004'
-            
+                
+                if domain_info.get("links"):
+                    sas_parent_uri = domain_info["links"][0].get("uri")
+                    print("URI desejada:", sas_parent_uri)
+
                 cur.execute(
-                f"""
-                    UPDATE {schema_db}.parametro 
-                    SET sas_domain_id = %s, status_code = %s
+                    f"""
+                    UPDATE {schema_db}.parametro
+                    SET sas_domain_id = %s, status_code = %s, parent_sas_uri = %s
                     WHERE id = %s
                     """,
-                    (relevant_info["id"], status_code, parametro_id)
+                    (relevant_info["id"], status_code, sas_parent_uri, parametro_id)
                 )
                 conn.commit()
+
                 evento_id = str(uuid.uuid4())
                 cur.execute(
                     f"""
-                        INSERT INTO {schema_db}.evento (id, status_code, sas_user_id, parametro_id)
-                        VALUES (%s, %s, %s, %s)
-                        RETURNING id
-                    """, 
-                    (evento_id, status_code, sas_user_id, parametro_id))
-
+                    INSERT INTO {schema_db}.evento (id, status_code, sas_user_id, parametro_id)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING id
+                    """,
+                    (evento_id, status_code, sas_user_id, parametro_id)
+                )
                 conn.commit()
+                print('Variavel ',relevant_info)
+                print('Parametro ',domain_info)
+
                 print("Registro de Parâmetro atualizado com sucesso!",relevant_info["id"])
 
         except Exception as e:
